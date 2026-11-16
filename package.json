@@ -1,0 +1,53 @@
+{
+  "name": "event-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Event Bridge - one request, multiple quotes, one place to compare.",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev -w @event-bridge/api",
+    "dev:web": "npm run dev -w @event-bridge/web",
+    "build:shared": "npm run build -w @event-bridge/shared",
+    "build": "npm run build:shared && npm run build -w @event-bridge/api && npm run build -w @event-bridge/web",
+    "start": "npm run start -w @event-bridge/api",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test --workspaces --if-present",
+    "prepare": "husky",
+    "db:generate": "npm run db:generate -w @event-bridge/api",
+    "db:migrate": "npm run db:migrate -w @event-bridge/api",
+    "db:seed": "npm run db:seed -w @event-bridge/api",
+    "db:reset": "npm run db:reset -w @event-bridge/api",
+    "db:studio": "npm run db:studio -w @event-bridge/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css,html}": [
+      "prettier --write"
+    ]
+  }
+}
