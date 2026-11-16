@@ -11,9 +11,10 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 > **Implementation status (16 Nov 2026):** stages 0–3 are implemented — npm workspaces, the full
 > 14-table schema with migrations, seed script, authentication, society/vendor profiles, public
 > vendor directory, category management, admin vendor review and account administration.
-> Typecheck, lint, production build and 26 tests pass (including the real migrations and the auth
-> flow against PostgreSQL-in-WASM). Neon credentials are still needed to apply the migrations and
-> seed the database; see [§21](#21-build-order) for the remaining stages.
+> The Neon database is connected: migrations are applied, seed data is loaded and `/health/db`
+> reports the database as reachable. Typecheck, lint, production build and 26 tests pass
+> (including the real migrations and the auth flow against PostgreSQL-in-WASM). See
+> [§21](#21-build-order) for the remaining stages.
 
 ---
 
