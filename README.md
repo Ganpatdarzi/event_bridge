@@ -8,12 +8,13 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 [![Stack](https://img.shields.io/badge/stack-React%20%7C%20Node%20%7C%20Express%20%7C%20Neon-1f6feb)](<>)
 [![Docs](https://img.shields.io/badge/docs-SRS%20v1.0-informational)](<>)
 
-> **Implementation status (16 Nov 2026):** stages 0–3 are implemented — npm workspaces, the full
+> **Implementation status (16 Nov 2026):** stages 0–4 are implemented — npm workspaces, the full
 > 14-table schema with migrations, seed script, authentication, society/vendor profiles, public
-> vendor directory, category management, admin vendor review and account administration.
-> The Neon database is connected: migrations are applied, seed data is loaded and `/health/db`
-> reports the database as reachable. Typecheck, lint, production build and 26 tests pass
-> (including the real migrations and the auth flow against PostgreSQL-in-WASM). See
+> vendor directory, category management, admin vendor review and account administration, plus
+> request drafts, submission, vendor matching/distribution, request management and the vendor
+> request board. The Neon database is connected: migrations are applied, seed data is loaded and
+> `/health/db` reports the database as reachable. Typecheck, lint, production build and 26 tests
+> pass (including the real migrations and the auth flow against PostgreSQL-in-WASM). See
 > [§21](#21-build-order) for the remaining stages.
 
 ---
@@ -402,17 +403,18 @@ Paginated endpoints return `{ "data": { "items": [...], "pagination": { "page", 
 
 ### Requests
 
-| Method | Endpoint                   | Access                               | Description                                  |
-| ------ | -------------------------- | ------------------------------------ | -------------------------------------------- |
-| POST   | `/requests`                | Society                              | Create request (draft or submit)             |
-| GET    | `/requests`                | Society                              | List own requests, filter by status/category |
-| GET    | `/requests/:id`            | Society owner, invited vendor, admin | Request detail (field-level privacy)         |
-| PATCH  | `/requests/:id`            | Society owner                        | Edit while editable                          |
-| POST   | `/requests/:id/submit`     | Society owner                        | Validate and distribute                      |
-| POST   | `/requests/:id/cancel`     | Society owner                        | Cancel with reason                           |
-| GET    | `/requests/:id/quotations` | Society owner, admin                 | All quotations for comparison                |
-| GET    | `/requests/:id/vendors`    | Society owner, admin                 | Distribution record                          |
-| GET    | `/vendor/requests`         | Vendor                               | Eligible open requests                       |
+| Method | Endpoint                   | Access                               | Description                              |
+| ------ | -------------------------- | ------------------------------------ | ---------------------------------------- |
+| POST   | `/requests`                | Society                              | Create request (draft or submit)         |
+| GET    | `/requests`                | Society, admin                       | List requests, filter by status/category |
+| GET    | `/requests/:id`            | Society owner, invited vendor, admin | Request detail (field-level privacy)     |
+| PATCH  | `/requests/:id`            | Society owner                        | Edit while editable                      |
+| POST   | `/requests/:id/submit`     | Society owner                        | Validate and distribute                  |
+| POST   | `/requests/:id/cancel`     | Society owner, admin                 | Cancel with reason                       |
+| POST   | `/requests/:id/close`      | Society owner, admin                 | Close an active or completed request     |
+| GET    | `/requests/:id/quotations` | Society owner, admin                 | All quotations for comparison            |
+| GET    | `/requests/:id/vendors`    | Society owner, admin                 | Distribution record                      |
+| GET    | `/vendor/requests`         | Vendor                               | Eligible open requests                   |
 
 ### Quotations
 

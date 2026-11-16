@@ -2,9 +2,9 @@
 
 Base URL: `http://localhost:4000` in development. All JSON endpoints live under `/api/v1`.
 
-> These notes are written incrementally. Stages 2–3 (authentication, profiles, categories and
-> administration) are implemented; later stages add requests, quotations, reviews, notifications
-> and dashboards.
+> These notes are written incrementally. Stages 2–4 (authentication, profiles, categories,
+> administration, requests, matching and distribution) are implemented; later stages add
+> quotations, reviews, notifications and dashboards.
 
 ## Response envelope
 
@@ -42,7 +42,8 @@ List endpoints that paginate return an envelope with the page and the total coun
 ```
 
 `page` starts at 1; `pageSize` defaults to 20 and is capped at 100. The paginated endpoints are
-`GET /vendors`, `GET /admin/vendors`, `GET /admin/users` and `GET /admin/audit-logs`.
+`GET /vendors`, `GET /requests`, `GET /vendor/requests`, `GET /admin/vendors`, `GET /admin/users`
+and `GET /admin/audit-logs`.
 
 ## Authentication model
 
@@ -275,6 +276,154 @@ All routes below require an admin access token.
 - Deactivation is a soft delete: existing requests and vendor assignments keep the reference,
   but the category disappears from the public list and cannot be newly selected.
 
+## Requests
+
+All request routes require an access token. A society owns its requests; a vendor can only see a
+request after distribution has assigned it to that vendor.
+
+### `POST /requests`
+
+Society only. Creates a draft by default. Send `"submit": true` to create and distribute in the
+same transaction; if validation fails, no draft is left behind.
+
+```json
+{
+  "event": {
+    "name": "Startup Pitch Night 2026",
+    "eventDate": "2026-12-10",
+    "location": "IBA Main Campus, Karachi",
+    "expectedAttendance": 180
+  },
+  "categoryId": "<uuid>",
+  "title": "Catering for 180 guests at Startup Pitch Night",
+  "description": "Buffet-style dinner for 180 guests, including vegetarian options.",
+  "budgetMin": 120000,
+  "budgetMax": 180000,
+  "quantity": 180,
+  "responseDeadline": "2026-12-01T18:00:00Z",
+  "submit": false
+}
+```
+
+- Send either a nested `event` or an existing `eventId` owned by the same society. The nested form
+  creates the event; `eventId` reuses one for another category on the same event.
+- `title` is 5–180 characters, `description` is 20–5000 characters. `budgetMin`/`budgetMax` are
+  optional, must be non-negative and minimum cannot exceed maximum.
+- Drafts may be incomplete in time: a past event date or deadline is only rejected on submit.
+- The response is `201` with the full request detail. A human-readable reference such as
+  `EB-R-9F3A12CD` is generated automatically.
+
+### `POST /requests/:id/submit`
+
+Society owner, draft only. Validates that:
+
+- the category still exists and is active;
+- an event is attached, its date is today or later and a response deadline is set;
+- the deadline is in the future and not after the event date;
+- the budget range is consistent.
+
+Matching then selects vendors where the account is active, the vendor is `verified`, the vendor
+offers the request category and its service area covers the event location. A blank service area
+means "serves everywhere"; otherwise the event location must name the vendor's city or one of the
+comma/semicolon-separated service-area terms (`nationwide`, `pakistan`, `remote`, etc. are
+wildcards). The transaction inserts `request_vendors`, creates one `request_new` notification per
+vendor, and moves the request `draft → submitted → open`. A request with no matches still opens
+with zero invitations.
+
+The response is the request detail; `counts.invitedVendors` shows the distribution size.
+
+### `GET /requests`
+
+Society owners see their own requests; admins see all requests. Paginated.
+
+| Query        | Meaning                                                          |
+| ------------ | ---------------------------------------------------------------- |
+| `status`     | Any request status                                               |
+| `categoryId` | Filter by category                                               |
+| `search`     | Title or reference, case-insensitive                             |
+| `societyId`  | Admin only — restrict to one society                             |
+| `sort`       | `newest` (default), `oldest` or `deadline` (null deadlines last) |
+| `page`       | Page number, default 1                                           |
+| `pageSize`   | Page size, default 20, maximum 100                               |
+
+Items contain the category, event summary, society summary, budget, deadline, invitation count,
+quotation count and timestamps.
+
+### `GET /requests/:id`
+
+Visible to the owning society, an invited vendor and admins. Any other caller receives `404`, not
+`403`, so request existence is not leaked. The response includes `permissions` flags for the
+current caller.
+
+Field-level privacy:
+
+- Owner and admin see the society contact details, `selectedQuotationId` and any cancellation
+  fields.
+- A vendor sees the society name and institution but **not** contact details until its own
+  quotation has been selected (`selected`, `completed` or `closed`).
+- Reading the detail as an invited vendor sets `distribution.viewedAt` and moves
+  `distribution.status` from `invited` to `viewed`, without overwriting `responded` or `declined`.
+- `counts` includes invited vendor and non-withdrawn quotation totals.
+
+### `PATCH /requests/:id`
+
+Society owner only, while the request is `draft`, `submitted`, `open` or `partially_quoted`.
+Accepts any of `event`, `eventId`, `categoryId`, `title`, `description`, `budgetMin`, `budgetMax`,
+`quantity` and `responseDeadline`. At least one field is required.
+
+- Once distributed (`open`/`partially_quoted`), the category, event date and event location are
+  locked because changing them would invalidate the distribution (`422 RULE_VIOLATION`).
+- A distributed request must keep a future response deadline that is not after the event date.
+- `422` is also used when the budget range would become invalid; `409 CONFLICT` when the request
+  has reached a non-editable state.
+
+### `POST /requests/:id/cancel`
+
+Society owner or admin. Requires `{ "reason": "..." }` (5–500 characters). Owners can cancel
+`draft`, `submitted`, `open`, `partially_quoted` and `quoted`; admins can additionally cancel
+`selected`. `completed`, `closed` and `cancelled` requests cannot be cancelled (`409 CONFLICT`).
+
+Cancellation stores `cancelledBy`, `cancelledAt` and `cancellationReason`, notifies every invited
+vendor with `request_closed`, and writes `request.cancelled` to the audit log.
+
+### `POST /requests/:id/close`
+
+Society owner or admin. Optional `{ "reason": "..." }` (maximum 500 characters) is kept in the
+audit log. Allowed from `open`, `partially_quoted`, `quoted` and `completed`; the request becomes
+`closed`, invited vendors receive `request_closed`, and `request.closed` is audited.
+
+### `GET /requests/:id/vendors`
+
+Society owner or admin. Returns the distribution record, not vendor contact details:
+
+```json
+{
+  "data": {
+    "requestId": "...",
+    "items": [
+      {
+        "vendorId": "...",
+        "businessName": "Moments by Adil Khan",
+        "city": "Karachi",
+        "verificationStatus": "verified",
+        "distributionStatus": "viewed",
+        "viewedAt": "...",
+        "notifiedAt": "..."
+      }
+    ]
+  }
+}
+```
+
+### `GET /vendor/requests`
+
+Vendor only. A non-verified vendor receives `403 NOT_ELIGIBLE`. Paginated board of requests
+distributed to the caller in `open` or `partially_quoted`.
+
+Filters: `categoryId`, `search` (title/reference), `sort` (`deadline` default, `newest`, `oldest`)
+plus `page`/`pageSize`. Each item includes the event, society name/institution, budget, deadline,
+the caller's distribution state and `hasQuoted`.
+
 ## Administration
 
 Every `/admin/*` route is restricted to `admin` accounts; society and vendor tokens receive `403`.
@@ -384,6 +533,7 @@ Runs `SELECT 1` against Neon. Returns `200` when reachable, `500 INTERNAL_ERROR`
 | `NOT_ELIGIBLE`      | 403    | Role is correct but a business rule blocks the action     |
 | `NOT_FOUND`         | 404    | Unknown route or resource                                 |
 | `DUPLICATE`         | 409    | Unique constraint (e.g. email already registered)         |
+| `CONFLICT`          | 409    | State changed so the requested action is no longer valid  |
 | `RULE_VIOLATION`    | 422    | State-machine or business-rule violation                  |
 | `RATE_LIMITED`      | 429    | Too many requests                                         |
 | `INTERNAL_ERROR`    | 500    | Unexpected failure; the request id is logged              |

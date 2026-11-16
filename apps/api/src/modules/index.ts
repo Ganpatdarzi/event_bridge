@@ -3,6 +3,7 @@ import { API_PREFIX } from '@event-bridge/shared';
 import { adminRouter } from './admin/admin.routes.js';
 import { authRouter } from './auth/auth.routes.js';
 import { categoriesRouter } from './categories/categories.routes.js';
+import { requestsRouter, vendorRequestsRouter } from './requests/requests.routes.js';
 import { societiesRouter } from './societies/societies.routes.js';
 import { vendorsRouter } from './vendors/vendors.routes.js';
 
@@ -23,4 +24,6 @@ apiRouter.use('/auth', authRouter);
 apiRouter.use('/categories', categoriesRouter);
 apiRouter.use('/societies', societiesRouter);
 apiRouter.use('/vendors', vendorsRouter);
+apiRouter.use('/requests', requestsRouter);
+apiRouter.use('/vendor', vendorRequestsRouter);
 apiRouter.use('/admin', adminRouter);
