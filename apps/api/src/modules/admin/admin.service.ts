@@ -908,28 +908,28 @@ export async function upsertSystemSetting(
   key: string,
   value: string,
 ): Promise<SystemSettingView> {
-  const [existing] = await db
-    .select()
-    .from(systemSettings)
-    .where(eq(systemSettings.key, key))
-    .limit(1);
-
-  if (existing) {
-    await db
-      .update(systemSettings)
-      .set({ value, updatedAt: new Date(), updatedBy: actorId })
-      .where(eq(systemSettings.key, key));
-  } else {
-    await db.insert(systemSettings).values({ key, value, updatedBy: actorId });
-  }
-
   await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, key))
+      .limit(1);
+
+    if (existing) {
+      await tx
+        .update(systemSettings)
+        .set({ value, updatedAt: new Date(), updatedBy: actorId })
+        .where(eq(systemSettings.key, key));
+    } else {
+      await tx.insert(systemSettings).values({ key, value, updatedBy: actorId });
+    }
+
     await writeAuditTx(tx, {
       actorId,
       action: 'settings.updated',
       targetType: 'system_setting',
-      targetId: key,
-      metadata: { value },
+      targetId: null,
+      metadata: { key, value },
     });
   });
 
