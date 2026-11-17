@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { AppError } from '../../lib/errors.js';
 import { parsePagination } from '../../lib/pagination.js';
 import {
+  addPortfolioImage,
   getMyVendorProfile,
   getPublicVendor,
   listPublicVendors,
+  removePortfolioImage,
   updateMyVendorProfile,
 } from './vendors.service.js';
 
@@ -41,4 +43,22 @@ export const updateMyVendor: RequestHandler = async (req, res) => {
 
   const vendor = await updateMyVendorProfile(req.user.id, req.body);
   res.json({ data: vendor });
+};
+
+export const addPortfolioImageHandler: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+
+  const image = await addPortfolioImage(
+    req.user.id,
+    req.body.dataUrl as string,
+    req.body.caption as string | undefined,
+  );
+  res.status(201).json({ data: image });
+};
+
+export const removePortfolioImageHandler: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+
+  await removePortfolioImage(req.user.id, req.params.id as string);
+  res.status(204).send();
 };

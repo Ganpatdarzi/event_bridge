@@ -258,6 +258,14 @@ export interface MyVendor extends VendorSummary {
   rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;
+  portfolio: PortfolioImage[];
+}
+
+export interface PortfolioImage {
+  id: string;
+  dataUrl: string;
+  caption: string | null;
+  createdAt: string;
 }
 
 export interface RequestListItem {

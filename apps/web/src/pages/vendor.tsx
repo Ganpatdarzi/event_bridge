@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { api, type MyVendor, type Paginated, type VendorRequestListItem } from '../lib/api.js';
+import {
+  api,
+  type MyVendor,
+  type Paginated,
+  type VendorRequestListItem,
+  type VendorReview,
+} from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { useApiQuery } from '../lib/use-api.js';
 import { formatBudget, formatDate, formatDateTime, humanize } from '../lib/format.js';
@@ -34,8 +40,20 @@ const emptyPage: Paginated<VendorRequestListItem> = {
 function VendorDashboard() {
   const { user } = useAuth();
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+  const [portfolioNotice, setPortfolioNotice] = useState<{
+    tone: 'success' | 'error';
+    text: string;
+  } | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const profile = useApiQuery(() => api<MyVendor>('/vendors/me'), []);
+  const reviews = useApiQuery(
+    () =>
+      profile.data
+        ? api<VendorReview[]>(`/vendors/${profile.data.id}/reviews`)
+        : Promise.resolve([]),
+    [profile.data?.id],
+  );
   const requestBoard = useApiQuery(async () => {
     if (profile.data?.verificationStatus !== 'verified') return emptyPage;
     return api<Paginated<VendorRequestListItem>>('/vendor/requests?pageSize=50');
@@ -45,6 +63,54 @@ function VendorDashboard() {
   const invited = items.filter((request) => request.distribution.status === 'invited').length;
   const quoted = items.filter((request) => request.hasQuoted).length;
   const status = profile.data?.verificationStatus;
+
+  async function uploadPortfolio(file: File) {
+    if (!file.type.startsWith('image/')) {
+      setPortfolioNotice({ tone: 'error', text: 'Please choose an image file.' });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setPortfolioNotice({ tone: 'error', text: 'Image must be under 2 MB.' });
+      return;
+    }
+    setUploading(true);
+    setPortfolioNotice(null);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await api('/vendors/me/portfolio', {
+          method: 'POST',
+          body: { dataUrl: reader.result, caption: file.name },
+        });
+        setPortfolioNotice({ tone: 'success', text: 'Portfolio image added.' });
+        profile.reload();
+      } catch (caught) {
+        setPortfolioNotice({
+          tone: 'error',
+          text: caught instanceof Error ? caught.message : 'Unable to upload image',
+        });
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.onerror = () => {
+      setPortfolioNotice({ tone: 'error', text: 'Unable to read the file.' });
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function removePortfolio(imageId: string) {
+    try {
+      await api(`/vendors/me/portfolio/${imageId}`, { method: 'DELETE' });
+      profile.reload();
+    } catch (caught) {
+      setPortfolioNotice({
+        tone: 'error',
+        text: caught instanceof Error ? caught.message : 'Unable to remove image',
+      });
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
@@ -135,6 +201,49 @@ function VendorDashboard() {
                     {category.name}
                   </Badge>
                 ))}
+              </div>
+
+              <div className="mt-5 border-t border-slate-100 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Portfolio
+                </p>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {(profile.data.portfolio ?? []).map((image) => (
+                    <div key={image.id} className="group relative">
+                      <img
+                        src={image.dataUrl}
+                        alt={image.caption ?? 'Portfolio image'}
+                        className="h-24 w-full rounded-lg object-cover ring-1 ring-slate-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void removePortfolio(image.id)}
+                        className="absolute right-1 top-1 rounded-full bg-white/90 px-1.5 py-0.5 text-xs font-semibold text-rose-600 opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadPortfolio(file);
+                      event.target.value = '';
+                    }}
+                  />
+                  {uploading ? 'Uploading…' : 'Add image'}
+                </label>
+                {portfolioNotice && (
+                  <div className="mt-2">
+                    <Alert tone={portfolioNotice.tone}>{portfolioNotice.text}</Alert>
+                  </div>
+                )}
               </div>
 
               <dl className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-sm">
@@ -258,6 +367,35 @@ function VendorDashboard() {
               </div>
             </>
           )}
+        </section>
+
+        <section className="mt-8">
+          <SectionHeading
+            title="Your reviews"
+            description="Feedback from societies you have worked with."
+          />
+          {reviews.loading && <LoadingBlock label="Loading reviews…" />}
+          {reviews.error && <Alert tone="error">{reviews.error}</Alert>}
+          {!reviews.loading && !reviews.error && (reviews.data?.length ?? 0) === 0 && (
+            <EmptyState
+              title="No reviews yet"
+              description="Reviews appear here after a society completes an engagement."
+            />
+          )}
+          <div className="mt-4 space-y-3">
+            {reviews.data?.map((review) => (
+              <Card key={review.id} className="p-4">
+                <p className="text-sm font-semibold text-amber-600">
+                  {'★'.repeat(review.rating)}
+                  <span className="ml-2 text-xs font-normal text-slate-500">
+                    {review.society.name}
+                  </span>
+                </p>
+                <p className="mt-1 text-sm text-slate-600">{review.comment ?? 'No comment.'}</p>
+                <p className="mt-1 text-xs text-slate-400">{formatDate(review.createdAt)}</p>
+              </Card>
+            ))}
+          </div>
         </section>
       </div>
     </div>

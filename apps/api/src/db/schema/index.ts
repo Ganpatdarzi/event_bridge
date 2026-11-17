@@ -11,6 +11,7 @@ export * from './request-vendors.js';
 export * from './quotations.js';
 export * from './reviews.js';
 export * from './notifications.js';
+export * from './portfolio-images.js';
 export * from './approval-records.js';
 export * from './audit-logs.js';
 export * from './refresh-tokens.js';

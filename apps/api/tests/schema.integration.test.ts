@@ -30,6 +30,7 @@ describe('initial migration', () => {
       'categories',
       'events',
       'notifications',
+      'portfolio_images',
       'quotations',
       'refresh_tokens',
       'request_vendors',

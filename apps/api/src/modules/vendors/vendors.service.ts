@@ -1,7 +1,14 @@
 import { and, asc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { UpdateVendorProfileInput, VendorStatus } from '@event-bridge/shared';
 import { db } from '../../db/index.js';
-import { categories, reviews, users, vendorCategories, vendors } from '../../db/schema/index.js';
+import {
+  categories,
+  portfolioImages,
+  reviews,
+  users,
+  vendorCategories,
+  vendors,
+} from '../../db/schema/index.js';
 import { writeAuditTx } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
 import { buildPagination, likePattern, type PageRequest } from '../../lib/pagination.js';
@@ -15,6 +22,13 @@ export interface VendorCategorySummary {
 export interface VendorRatingSummary {
   average: number | null;
   count: number;
+}
+
+export interface PortfolioImageSummary {
+  id: string;
+  dataUrl: string;
+  caption: string | null;
+  createdAt: Date;
 }
 
 export interface PublicVendorSummary {
@@ -32,6 +46,7 @@ export interface PublicVendorDetail extends PublicVendorSummary {
   contactPerson: string | null;
   contactPhone: string | null;
   contactEmail: string;
+  portfolio: PortfolioImageSummary[];
 }
 
 export interface MyVendorProfile {
@@ -49,6 +64,7 @@ export interface MyVendorProfile {
   updatedAt: Date;
   categories: VendorCategorySummary[];
   rating: VendorRatingSummary;
+  portfolio: PortfolioImageSummary[];
   account: {
     id: string;
     name: string;
@@ -111,6 +127,33 @@ async function loadRatingMap(vendorIds: string[]): Promise<Map<string, VendorRat
 
   for (const row of rows) {
     map.set(row.vendorId, { average: row.average, count: row.count });
+  }
+
+  return map;
+}
+
+async function loadPortfolioMap(
+  vendorIds: string[],
+): Promise<Map<string, PortfolioImageSummary[]>> {
+  const map = new Map<string, PortfolioImageSummary[]>();
+  if (!vendorIds.length) return map;
+
+  const rows = await db
+    .select({
+      id: portfolioImages.id,
+      vendorId: portfolioImages.vendorId,
+      dataUrl: portfolioImages.dataUrl,
+      caption: portfolioImages.caption,
+      createdAt: portfolioImages.createdAt,
+    })
+    .from(portfolioImages)
+    .where(inArray(portfolioImages.vendorId, vendorIds))
+    .orderBy(portfolioImages.createdAt);
+
+  for (const row of rows) {
+    const list = map.get(row.vendorId) ?? [];
+    list.push({ id: row.id, dataUrl: row.dataUrl, caption: row.caption, createdAt: row.createdAt });
+    map.set(row.vendorId, list);
   }
 
   return map;
@@ -239,6 +282,7 @@ export async function getPublicVendor(vendorId: string): Promise<PublicVendorDet
     ...row,
     categories: categoryMap.get(row.id) ?? [],
     rating: ratingMap.get(row.id) ?? emptyRating(),
+    portfolio: (await loadPortfolioMap([row.id])).get(row.id) ?? [],
   };
 }
 
@@ -270,9 +314,10 @@ export async function getMyVendorProfile(userId: string): Promise<MyVendorProfil
     throw AppError.notFound('Vendor profile not found');
   }
 
-  const [categoryMap, ratingMap] = await Promise.all([
+  const [categoryMap, ratingMap, portfolioMap] = await Promise.all([
     loadCategoryMap([row.id], false),
     loadRatingMap([row.id]),
+    loadPortfolioMap([row.id]),
   ]);
 
   return {
@@ -290,6 +335,7 @@ export async function getMyVendorProfile(userId: string): Promise<MyVendorProfil
     updatedAt: row.updatedAt,
     categories: categoryMap.get(row.id) ?? [],
     rating: ratingMap.get(row.id) ?? emptyRating(),
+    portfolio: portfolioMap.get(row.id) ?? [],
     account: {
       id: row.accountId,
       name: row.accountName,
@@ -298,6 +344,87 @@ export async function getMyVendorProfile(userId: string): Promise<MyVendorProfil
   };
 }
 
+export async function addPortfolioImage(
+  userId: string,
+  dataUrl: string,
+  caption?: string | null,
+): Promise<PortfolioImageSummary> {
+  const [vendor] = await db
+    .select({ id: vendors.id })
+    .from(vendors)
+    .where(eq(vendors.userId, userId))
+    .limit(1);
+
+  if (!vendor) throw AppError.notFound('Vendor profile not found');
+
+  const [existingCount] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(portfolioImages)
+    .where(eq(portfolioImages.vendorId, vendor.id));
+
+  if ((existingCount?.total ?? 0) >= 8) {
+    throw AppError.ruleViolation('You can upload at most 8 portfolio images.');
+  }
+
+  const [created] = await db
+    .insert(portfolioImages)
+    .values({ vendorId: vendor.id, dataUrl, caption: caption ?? null })
+    .returning({
+      id: portfolioImages.id,
+      dataUrl: portfolioImages.dataUrl,
+      caption: portfolioImages.caption,
+      createdAt: portfolioImages.createdAt,
+    });
+
+  if (!created) throw new Error('Portfolio insert failed');
+
+  await db.transaction(async (tx) => {
+    await writeAuditTx(tx, {
+      actorId: userId,
+      action: 'vendor.portfolio_added',
+      targetType: 'portfolio_image',
+      targetId: null,
+      metadata: { vendorId: vendor.id },
+    });
+  });
+
+  return {
+    id: created.id,
+    dataUrl: created.dataUrl,
+    caption: created.caption,
+    createdAt: created.createdAt,
+  };
+}
+
+export async function removePortfolioImage(userId: string, imageId: string): Promise<void> {
+  const [vendor] = await db
+    .select({ id: vendors.id })
+    .from(vendors)
+    .where(eq(vendors.userId, userId))
+    .limit(1);
+
+  if (!vendor) throw AppError.notFound('Vendor profile not found');
+
+  const [image] = await db
+    .select({ id: portfolioImages.id })
+    .from(portfolioImages)
+    .where(and(eq(portfolioImages.id, imageId), eq(portfolioImages.vendorId, vendor.id)))
+    .limit(1);
+
+  if (!image) throw AppError.notFound('Portfolio image not found');
+
+  await db.delete(portfolioImages).where(eq(portfolioImages.id, imageId));
+
+  await db.transaction(async (tx) => {
+    await writeAuditTx(tx, {
+      actorId: userId,
+      action: 'vendor.portfolio_removed',
+      targetType: 'portfolio_image',
+      targetId: null,
+      metadata: { vendorId: vendor.id, imageId },
+    });
+  });
+}
 export async function updateMyVendorProfile(
   userId: string,
   input: UpdateVendorProfileInput,
