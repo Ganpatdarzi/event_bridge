@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type NotificationItem, type NotificationsPage } from '../lib/api.js';
+import { api, ApiError, type NotificationItem, type NotificationsPage } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { formatDateTime, humanize } from '../lib/format.js';
 import { dashboardPath } from '../lib/roles.js';
@@ -14,6 +14,23 @@ function safeLink(link: string | null, role: string | undefined): string {
   if (!link) return dashboardPath(role);
   if (link.startsWith('/vendor/requests')) return '/vendor';
   return link.startsWith('/') ? link : dashboardPath(role);
+}
+
+/** Keep proxy/restart noise out of the UI. */
+function friendlyError(caught: unknown): string {
+  const unreachable =
+    'The API is not reachable right now. It may be restarting — try again in a moment.';
+
+  if (caught instanceof ApiError) {
+    if (caught.status === 502 || caught.status === 503 || caught.status === 504) {
+      return unreachable;
+    }
+    return caught.message;
+  }
+
+  if (caught instanceof TypeError) return unreachable;
+  if (caught instanceof Error && caught.message) return caught.message;
+  return 'Unable to load notifications';
 }
 
 export function NotificationBell() {
@@ -38,7 +55,7 @@ export function NotificationBell() {
       setError(null);
     } catch (caught) {
       if (!mounted.current) return;
-      setError(caught instanceof Error ? caught.message : 'Unable to load notifications');
+      setError(friendlyError(caught));
     }
   }, [user]);
 
@@ -68,14 +85,16 @@ export function NotificationBell() {
 
   if (!user) return null;
 
+  async function refresh() {
+    setLoading(true);
+    await load();
+    if (mounted.current) setLoading(false);
+  }
+
   async function toggleOpen() {
     const next = !open;
     setOpen(next);
-    if (next) {
-      setLoading(true);
-      await load();
-      setLoading(false);
-    }
+    if (next) await refresh();
   }
 
   async function openNotification(item: NotificationItem) {
@@ -105,9 +124,17 @@ export function NotificationBell() {
       setUnread(0);
       setError(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to update notifications');
+      setError(friendlyError(caught));
     }
   }
+
+  const summary = error
+    ? 'Couldn’t refresh'
+    : unread > 0
+      ? `${unread} unread`
+      : loading
+        ? 'Checking for updates…'
+        : 'You are all caught up';
 
   return (
     <div className="relative">
@@ -153,11 +180,9 @@ export function NotificationBell() {
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Notifications</p>
-                <p className="text-xs text-slate-500">
-                  {unread > 0 ? `${unread} unread` : 'You are all caught up'}
-                </p>
+                <p className="text-xs text-slate-500">{summary}</p>
               </div>
-              {unread > 0 && (
+              {!error && unread > 0 && (
                 <button
                   type="button"
                   onClick={() => void markAllRead()}
@@ -177,7 +202,19 @@ export function NotificationBell() {
               )}
 
               {!loading && error && (
-                <p className="px-4 py-4 text-sm font-medium text-rose-600">{error}</p>
+                <div className="px-4 py-5">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Couldn’t load notifications
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">{error}</p>
+                  <button
+                    type="button"
+                    onClick={() => void refresh()}
+                    className="mt-3 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Try again
+                  </button>
+                </div>
               )}
 
               {!loading && !error && items.length === 0 && (
@@ -187,6 +224,7 @@ export function NotificationBell() {
               )}
 
               {!loading &&
+                !error &&
                 items.map((item) => (
                   <button
                     key={item.id}
