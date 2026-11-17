@@ -1,7 +1,11 @@
 import { Route, Routes } from 'react-router-dom';
 import { AppShell } from '../app/shell.js';
 import { LandingPage } from '../pages/landing.js';
+import { AboutPage } from '../pages/about.js';
+import { HowItWorksPage } from '../pages/how-it-works.js';
+import { CategoriesPage } from '../pages/categories.js';
 import { VendorsPage } from '../pages/vendors.js';
+import { ContactPage } from '../pages/contact.js';
 import { LoginPage } from '../pages/login.js';
 import { RegisterPage } from '../pages/register.js';
 import { SocietyPage } from '../pages/society.js';
@@ -14,7 +18,11 @@ export function AppRouter() {
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/how-it-works" element={<HowItWorksPage />} />
+        <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/vendors" element={<VendorsPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/society" element={<SocietyPage />} />

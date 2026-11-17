@@ -53,15 +53,27 @@ export function AppShell() {
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-            <NavLink to="/vendors" className={navLinkClass}>
-              Discover vendors
+            <NavLink to="/" className={navLinkClass}>
+              Home
+            </NavLink>
+            <NavLink to="/about" className={navLinkClass}>
+              About
             </NavLink>
             <a
-              href="/#how-it-works"
+              href="/how-it-works"
               className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               How it works
             </a>
+            <NavLink to="/categories" className={navLinkClass}>
+              Categories
+            </NavLink>
+            <NavLink to="/vendors" className={navLinkClass}>
+              Vendors
+            </NavLink>
+            <NavLink to="/contact" className={navLinkClass}>
+              Contact
+            </NavLink>
           </nav>
 
           <div className="flex items-center gap-2">
