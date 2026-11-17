@@ -23,12 +23,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "npm run test --workspaces --if-present",
-    "prepare": "husky",
+    "prepare": "node scripts/prepare.mjs",
     "db:generate": "npm run db:generate -w @event-bridge/api",
     "db:migrate": "npm run db:migrate -w @event-bridge/api",
     "db:seed": "npm run db:seed -w @event-bridge/api",
     "db:reset": "npm run db:reset -w @event-bridge/api",
     "db:studio": "npm run db:studio -w @event-bridge/api"
+  },
+  "dependencies": {
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -38,7 +41,6 @@
     "husky": "^9.1.7",
     "lint-staged": "^17.6.1",
     "prettier": "^3.6.2",
-    "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4"
   },
   "lint-staged": {
