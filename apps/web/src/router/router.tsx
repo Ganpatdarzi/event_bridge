@@ -26,7 +26,9 @@ export function AppRouter() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/society" element={<SocietyPage />} />
+        <Route path="/society/:section" element={<SocietyPage />} />
         <Route path="/vendor" element={<VendorPage />} />
+        <Route path="/vendor/:section" element={<VendorPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

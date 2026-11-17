@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import {
   api,
   type Category,
@@ -42,6 +43,8 @@ const emptyPage: Paginated<VendorRequestListItem> = {
 };
 
 function VendorDashboard() {
+  const { section } = useParams();
+  const active = section ?? 'overview';
   const { user } = useAuth();
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
   const [portfolioNotice, setPortfolioNotice] = useState<{
@@ -195,6 +198,15 @@ function VendorDashboard() {
     }
   }
 
+  const tabs = [
+    { id: 'overview', label: 'Overview', to: '/vendor' },
+    { id: 'profile', label: 'Profile', to: '/vendor/profile' },
+    { id: 'requests', label: 'Requests', to: '/vendor/requests' },
+    { id: 'quotations', label: 'Quotations', to: '/vendor/quotations' },
+    { id: 'reviews', label: 'Reviews', to: '/vendor/reviews' },
+    { id: 'settings', label: 'Settings', to: '/vendor/settings' },
+  ];
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       <PageHeader
@@ -204,55 +216,45 @@ function VendorDashboard() {
         actions={status ? <StatusBadge status={status} /> : undefined}
       />
 
-      {status === 'pending_review' && (
-        <div className="mt-6">
-          <Alert tone="info">
-            <strong className="font-semibold">Your application is under review.</strong> An
-            administrator will verify your business before requests and directory placement are
-            enabled.
-          </Alert>
-        </div>
-      )}
-
-      {status === 'rejected' && (
-        <div className="mt-6">
-          <Alert tone="error">
-            <strong className="font-semibold">Application rejected.</strong>{' '}
-            {profile.data?.rejectionReason ?? 'Contact the platform administrator for details.'}
-          </Alert>
-        </div>
-      )}
-
-      {status === 'changes_requested' && (
-        <div className="mt-6">
-          <Alert tone="info">
-            <strong className="font-semibold">Changes requested.</strong>{' '}
-            {profile.data?.rejectionReason ?? 'Update your profile and resubmit for review.'}
-          </Alert>
-        </div>
-      )}
-
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Verification" value={status ? humanize(status) : '—'} hint="Admin-reviewed" />
-        <Stat
-          label="Open invitations"
-          value={status === 'verified' && !requestBoard.loading ? invited : '—'}
-          hint="New requests"
-        />
-        <Stat
-          label="Quoted"
-          value={status === 'verified' && !requestBoard.loading ? quoted : '—'}
-          hint="Requests you replied to"
-        />
-        <Stat
-          label="Categories"
-          value={profile.data ? profile.data.categories.length : '—'}
-          hint="Services you offer"
-        />
+      <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.id}
+            to={tab.to}
+            className={buttonStyles(active === tab.id ? 'primary' : 'ghost', 'sm')}
+          >
+            {tab.label}
+          </Link>
+        ))}
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.5fr]">
-        <section id="profile">
+      {active === 'overview' && (
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat
+            label="Verification"
+            value={status ? humanize(status) : '—'}
+            hint="Admin-reviewed"
+          />
+          <Stat
+            label="Open invitations"
+            value={status === 'verified' && !requestBoard.loading ? invited : '—'}
+            hint="New requests"
+          />
+          <Stat
+            label="Quoted"
+            value={status === 'verified' && !requestBoard.loading ? quoted : '—'}
+            hint="Requests you replied to"
+          />
+          <Stat
+            label="Categories"
+            value={profile.data ? profile.data.categories.length : '—'}
+            hint="Services you offer"
+          />
+        </div>
+      )}
+
+      {active === 'profile' && (
+        <section id="profile" className="mt-10">
           <SectionHeading title="Business profile" description="How societies see your business." />
           {profile.loading && <LoadingBlock label="Loading profile…" />}
           {profile.error && <Alert tone="error">{profile.error}</Alert>}
@@ -473,11 +475,7 @@ function VendorDashboard() {
                   return (
                     <label
                       key={category.id}
-                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                        checked
-                          ? 'border-brand bg-teal-50 text-brand'
-                          : 'border-slate-300 bg-white text-slate-700'
-                      }`}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${checked ? 'border-brand bg-teal-50 text-brand' : 'border-slate-300 bg-white text-slate-700'}`}
                     >
                       <input
                         type="checkbox"
@@ -507,8 +505,10 @@ function VendorDashboard() {
             </Card>
           )}
         </section>
+      )}
 
-        <section id="requests">
+      {active === 'requests' && (
+        <section id="requests" className="mt-10">
           <SectionHeading
             title="Matched requests"
             description="Requests distributed to you based on your service categories."
@@ -608,91 +608,98 @@ function VendorDashboard() {
             </>
           )}
         </section>
-      </div>
+      )}
 
-      <section id="quotations" className="mt-10">
-        <SectionHeading title="My quotations" description="Quotations you have submitted." />
-        {myQuotations.loading && <LoadingBlock label="Loading quotations…" />}
-        {myQuotations.error && <Alert tone="error">{myQuotations.error}</Alert>}
-        {!myQuotations.loading &&
-          !myQuotations.error &&
-          (myQuotations.data?.items.length ?? 0) === 0 && (
+      {active === 'quotations' && (
+        <section id="quotations" className="mt-10">
+          <SectionHeading title="My quotations" description="Quotations you have submitted." />
+          {myQuotations.loading && <LoadingBlock label="Loading quotations…" />}
+          {myQuotations.error && <Alert tone="error">{myQuotations.error}</Alert>}
+          {!myQuotations.loading &&
+            !myQuotations.error &&
+            (myQuotations.data?.items.length ?? 0) === 0 && (
+              <EmptyState
+                title="No quotations yet"
+                description="Apply to a matched request to create your first quotation."
+              />
+            )}
+          <div className="mt-4 space-y-3">
+            {myQuotations.data?.items.map((quote) => (
+              <Card key={quote.id} className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{quote.request.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {quote.request.reference} · {quote.reference} ·{' '}
+                      {formatMoney(quote.totalPrice)}
+                    </p>
+                  </div>
+                  <Badge tone={quote.status === 'selected' ? 'emerald' : 'slate'}>
+                    {humanize(quote.status)}
+                  </Badge>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {active === 'reviews' && (
+        <section id="reviews" className="mt-10">
+          <SectionHeading
+            title="Your reviews"
+            description="Feedback from societies you have worked with."
+          />
+          {reviews.loading && <LoadingBlock label="Loading reviews…" />}
+          {reviews.error && <Alert tone="error">{reviews.error}</Alert>}
+          {!reviews.loading && !reviews.error && (reviews.data?.length ?? 0) === 0 && (
             <EmptyState
-              title="No quotations yet"
-              description="Apply to a matched request to create your first quotation."
+              title="No reviews yet"
+              description="Reviews appear here after a society completes an engagement."
             />
           )}
-        <div className="mt-4 space-y-3">
-          {myQuotations.data?.items.map((quote) => (
-            <Card key={quote.id} className="p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{quote.request.title}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {quote.request.reference} · {quote.reference} · {formatMoney(quote.totalPrice)}
-                  </p>
-                </div>
-                <Badge tone={quote.status === 'selected' ? 'emerald' : 'slate'}>
-                  {humanize(quote.status)}
-                </Badge>
+          <div className="mt-4 space-y-3">
+            {reviews.data?.map((review) => (
+              <Card key={review.id} className="p-4">
+                <p className="text-sm font-semibold text-amber-600">
+                  {'★'.repeat(review.rating)}
+                  <span className="ml-2 text-xs font-normal text-slate-500">
+                    {review.society.name}
+                  </span>
+                </p>
+                <p className="mt-1 text-sm text-slate-600">{review.comment ?? 'No comment.'}</p>
+                <p className="mt-1 text-xs text-slate-400">{formatDate(review.createdAt)}</p>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {active === 'settings' && (
+        <section id="settings" className="mt-10">
+          <SectionHeading title="Settings" description="Account and notification preferences." />
+          <Card className="p-6">
+            <dl className="space-y-2 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Name</dt>
+                <dd className="font-medium text-slate-800">{user?.name}</dd>
               </div>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section id="reviews" className="mt-10">
-        <SectionHeading
-          title="Your reviews"
-          description="Feedback from societies you have worked with."
-        />
-        {reviews.loading && <LoadingBlock label="Loading reviews…" />}
-        {reviews.error && <Alert tone="error">{reviews.error}</Alert>}
-        {!reviews.loading && !reviews.error && (reviews.data?.length ?? 0) === 0 && (
-          <EmptyState
-            title="No reviews yet"
-            description="Reviews appear here after a society completes an engagement."
-          />
-        )}
-        <div className="mt-4 space-y-3">
-          {reviews.data?.map((review) => (
-            <Card key={review.id} className="p-4">
-              <p className="text-sm font-semibold text-amber-600">
-                {'★'.repeat(review.rating)}
-                <span className="ml-2 text-xs font-normal text-slate-500">
-                  {review.society.name}
-                </span>
-              </p>
-              <p className="mt-1 text-sm text-slate-600">{review.comment ?? 'No comment.'}</p>
-              <p className="mt-1 text-xs text-slate-400">{formatDate(review.createdAt)}</p>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section id="settings" className="mt-10">
-        <SectionHeading title="Settings" description="Account and notification preferences." />
-        <Card className="p-6">
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Name</dt>
-              <dd className="font-medium text-slate-800">{user?.name}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Email</dt>
-              <dd className="font-medium text-slate-800">{user?.email}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Role</dt>
-              <dd className="font-medium text-slate-800">Vendor</dd>
-            </div>
-          </dl>
-          <p className="mt-4 text-xs text-slate-500">
-            Use the profile editor above to update your business details. Password changes are
-            handled through the login flow.
-          </p>
-        </Card>
-      </section>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Email</dt>
+                <dd className="font-medium text-slate-800">{user?.email}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500">Role</dt>
+                <dd className="font-medium text-slate-800">Vendor</dd>
+              </div>
+            </dl>
+            <p className="mt-4 text-xs text-slate-500">
+              Use the profile editor above to update your business details. Password changes are
+              handled through the login flow.
+            </p>
+          </Card>
+        </section>
+      )}
     </div>
   );
 }

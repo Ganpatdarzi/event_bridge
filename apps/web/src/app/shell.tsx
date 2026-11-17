@@ -8,24 +8,7 @@ import { NotificationBell } from '../components/notification-bell.js';
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 40 40"
-      className={className ?? 'h-9 w-9'}
-      role="img"
-      aria-label="Event Bridge logo"
-    >
-      <rect width="40" height="40" rx="12" fill="#0f766e" />
-      <path
-        d="M8 26c0-6 5-11 12-11s12 5 12 11"
-        fill="none"
-        stroke="#99f6e4"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      <path d="M8 26h24" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="14" cy="26" r="2.2" fill="#ffffff" />
-      <circle cx="26" cy="26" r="2.2" fill="#ffffff" />
-    </svg>
+    <img src="/logo.png" alt="Event Bridge logo" className={className ?? 'h-9 w-9'} role="img" />
   );
 }
 
@@ -69,40 +52,21 @@ export function AppShell() {
           <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
             {user ? (
               <>
-                {user.role === 'society' && (
-                  <>
-                    <NavLink to="/society#overview" className={navLinkClass}>
-                      Overview
-                    </NavLink>
-                    <NavLink to="/society#create" className={navLinkClass}>
-                      Create request
-                    </NavLink>
-                    <NavLink to="/society#requests" className={navLinkClass}>
-                      My requests
-                    </NavLink>
-                    <NavLink to="/society#selected" className={navLinkClass}>
-                      Selected
-                    </NavLink>
-                    <NavLink to="/society#profile" className={navLinkClass}>
-                      Profile
-                    </NavLink>
-                  </>
-                )}
                 {user.role === 'vendor' && (
                   <>
-                    <NavLink to="/vendor#profile" className={navLinkClass}>
+                    <NavLink to="/vendor/profile" className={navLinkClass}>
                       Profile
                     </NavLink>
-                    <NavLink to="/vendor#requests" className={navLinkClass}>
+                    <NavLink to="/vendor/requests" className={navLinkClass}>
                       Requests
                     </NavLink>
-                    <NavLink to="/vendor#quotations" className={navLinkClass}>
+                    <NavLink to="/vendor/quotations" className={navLinkClass}>
                       Quotations
                     </NavLink>
-                    <NavLink to="/vendor#reviews" className={navLinkClass}>
+                    <NavLink to="/vendor/reviews" className={navLinkClass}>
                       Reviews
                     </NavLink>
-                    <NavLink to="/vendor#settings" className={navLinkClass}>
+                    <NavLink to="/vendor/settings" className={navLinkClass}>
                       Settings
                     </NavLink>
                   </>
