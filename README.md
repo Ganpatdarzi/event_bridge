@@ -4,23 +4,32 @@
 
 A web-based multi-vendor B2B marketplace that lets university societies send one event-service request to many vendors and compare quotations side by side.
 
-[![Status](https://img.shields.io/badge/status-foundation%20in%20progress-yellow)](<>)
+[![Status](https://img.shields.io/badge/status-stages%200--4%20complete-brightgreen)](<>)
+[![Build](https://img.shields.io/badge/build-passing-brightgreen)](<>)
+[![Tests](https://img.shields.io/badge/tests-26%20passing-brightgreen)](<>)
 [![Stack](https://img.shields.io/badge/stack-React%20%7C%20Node%20%7C%20Express%20%7C%20Neon-1f6feb)](<>)
 [![Docs](https://img.shields.io/badge/docs-SRS%20v1.0-informational)](<>)
 
-> **Implementation status (16 Nov 2026):** stages 0–4 are fully implemented — npm workspaces,
-> the full 14-table schema with migrations, seed script, authentication, society/vendor profiles,
-> public vendor directory, category management, admin vendor review and account administration,
-> plus request drafts, submission, vendor matching/distribution, request management and the vendor
-> request board. The Neon database is connected: migrations are applied, seed data is loaded and
-> `/health/db` reports the database as reachable. Typecheck, lint, production build and 26 tests
-> pass (including the real migrations and the auth flow against PostgreSQL-in-WASM). Quotation
-> implementation (Stage 5) API endpoints exist and are functional per the API docs; the new
-> module files encountered TypeScript strict-checking incompatibilities with the project's
-> `verbatimModuleSyntax: true` configuration and are pending resolution. Stage 6 frontend
-> foundation (Vite + Tailwind + React Router + TanStack Query) is in progress — core scaffolding
-> (router, QueryClient provider, layouts, shared UI components, auth screens) is implemented
-> but has similar TypeScript strict-checking incompatibilities that require targeted fixes.
+> **Implementation status (17 Nov 2026):** the backend is complete for **stages 0–4** — npm
+> workspaces, the full 14-table schema with migrations, the seed script, authentication (JWT
+> access token + rotating refresh cookie, argon2id hashing), society/vendor profiles, the public
+> vendor directory, admin-managed categories, admin vendor review and account administration,
+> plus request drafts, submission, vendor matching/distribution, request management and the
+> vendor request board.
+>
+> **Quality gates are green.** `npm run typecheck`, `npm run lint`, `npm run build` and
+> `npm test` all pass; the suite runs **26/26 tests**, including the real migrations and the
+> auth flow against PostgreSQL-in-WASM.
+>
+> **Frontend shell.** The Vite + React + Tailwind frontend is wired with a single
+> `BrowserRouter`, shared UI components and the public landing page. The white-screen regression
+> (caused by rendering `<Routes>` outside a router context) is fixed, and the PostCSS/Tailwind
+> pipeline is corrected. Society, vendor and admin dashboards are currently landing placeholders.
+>
+> **Not built yet.** Stage 5 (quotation submission, comparison and selection) and everything
+> after it — reviews, portfolio uploads, notifications, analytics and the full role dashboards.
+> The [API reference](#8-api-reference) and [build order](#21-build-order) describe the complete
+> target specification; treat them as the plan, not as a list of shipped endpoints.
 
 ---
 
@@ -106,17 +115,19 @@ These are early signals from a small convenience sample — not proof of product
 
 ### MVP (P0 — essential)
 
-- [ ] Registration and login for society and vendor users, with role-based access control
-- [ ] Society profile management
-- [ ] Vendor business profile: categories, service area, description, portfolio
-- [ ] Administrator review of vendor applications (approve / reject / request changes)
-- [ ] Administrator-managed service categories
-- [ ] Event and service-request creation (date, location, budget, quantity, description)
-- [ ] Category-based vendor matching and request distribution
+> ✅ implemented · ⬜ not built yet (see [§21](#21-build-order) for sequencing).
+
+- [x] Registration and login for society and vendor users, with role-based access control
+- [x] Society profile management
+- [x] Vendor business profile: categories, service area, description
+- [x] Administrator review of vendor applications (approve / reject / request changes)
+- [x] Administrator-managed service categories
+- [x] Event and service-request creation (date, location, budget, quantity, description)
+- [x] Category-based vendor matching and request distribution
 - [ ] Structured quotation submission (price, scope, inclusions, exclusions, validity)
 - [ ] Society quotation listing and side-by-side comparison
 - [ ] Preferred/selected quotation recording with audit trail
-- [ ] Request and quotation status tracking
+- [x] Request status tracking (quotation status tracking pending Stage 5)
 - [ ] In-app notifications
 - [ ] Dashboards for society, vendor and administrator
 
@@ -995,4 +1006,4 @@ Build in this sequence. Steps are numbered **1 → 65**; complete each one befor
 
 **License:** Academic project — not licensed for commercial use without the team's permission.
 
-**Status:** specification complete; implementation starting with Phase 0.
+**Status:** stages 0–4 implemented and verified (typecheck, lint, build, 26/26 tests). Stage 5 onward per the [build order](#21-build-order).
