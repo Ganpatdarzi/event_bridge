@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   cancelRequestSchema,
   createRequestSchema,
+  reviewCreateSchema,
   updateRequestSchema,
   upsertQuotationSchema,
   uuidSchema,
@@ -12,8 +13,11 @@ import { validateBody, validateParams } from '../../middleware/validate.js';
 import {
   getMyQuotation,
   listQuotations,
+  preferQuotationHandler,
+  selectQuotationHandler,
   submitQuotation,
 } from '../quotations/quotations.controller.js';
+import { createReviewHandler } from '../reviews/reviews.controller.js';
 import {
   cancelRequest,
   closeRequest,
@@ -27,6 +31,7 @@ import {
 } from './requests.controller.js';
 
 const idParams = z.object({ id: uuidSchema });
+const quotationParams = z.object({ id: uuidSchema, quotationId: uuidSchema });
 
 export const requestsRouter = Router();
 
@@ -73,6 +78,25 @@ requestsRouter.get(
   authorize('society', 'admin'),
   validateParams(idParams),
   listQuotations,
+);
+requestsRouter.post(
+  '/:id/quotations/:quotationId/select',
+  authorize('society', 'admin'),
+  validateParams(quotationParams),
+  selectQuotationHandler,
+);
+requestsRouter.post(
+  '/:id/quotations/:quotationId/prefer',
+  authorize('society', 'admin'),
+  validateParams(quotationParams),
+  preferQuotationHandler,
+);
+requestsRouter.post(
+  '/:id/review',
+  authorize('society'),
+  validateParams(idParams),
+  validateBody(reviewCreateSchema),
+  createReviewHandler,
 );
 requestsRouter.patch(
   '/:id',

@@ -18,6 +18,7 @@ import {
 } from '../components/ui.js';
 import { AuthGate } from '../components/auth-gate.js';
 import { RequestApplications } from '../components/request-applications.js';
+import { ReviewForm } from '../components/review-form.js';
 
 export function SocietyPage() {
   return (
@@ -33,6 +34,7 @@ function SocietyDashboard() {
   const categories = useApiQuery(() => api<Category[]>('/categories', { auth: false }), []);
   const [showForm, setShowForm] = useState(false);
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const items = requests.data?.items ?? [];
   const active = items.filter((request) =>
@@ -186,7 +188,36 @@ function SocietyDashboard() {
                 )}
               </div>
 
-              {openRequestId === request.id && <RequestApplications requestId={request.id} />}
+              {openRequestId === request.id && (
+                <RequestApplications
+                  requestId={request.id}
+                  canSelect={['open', 'partially_quoted', 'quoted'].includes(request.status)}
+                  onSelect={() => requests.reload()}
+                />
+              )}
+
+              {['selected', 'completed'].includes(request.status) && (
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  {reviewingId === request.id ? (
+                    <ReviewForm
+                      requestId={request.id}
+                      onDone={() => {
+                        setReviewingId(null);
+                        requests.reload();
+                      }}
+                      onCancel={() => setReviewingId(null)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className={buttonStyles('secondary', 'sm')}
+                      onClick={() => setReviewingId(request.id)}
+                    >
+                      Leave a review
+                    </button>
+                  )}
+                </div>
+              )}
             </Card>
           ))}
         </div>

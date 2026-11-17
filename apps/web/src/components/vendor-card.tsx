@@ -1,5 +1,8 @@
-import type { VendorSummary } from '../lib/api.js';
-import { Badge, Card } from './ui.js';
+import { useState } from 'react';
+import type { VendorReview, VendorSummary } from '../lib/api.js';
+import { api } from '../lib/api.js';
+import { formatDate } from '../lib/format.js';
+import { Badge, buttonStyles, Card } from './ui.js';
 
 function Stars({ average, count }: { average: number | null; count: number }) {
   if (!count) return <span className="text-xs font-medium text-slate-400">New vendor</span>;
@@ -13,6 +16,28 @@ function Stars({ average, count }: { average: number | null; count: number }) {
 }
 
 export function VendorCard({ vendor }: { vendor: VendorSummary }) {
+  const [showReviews, setShowReviews] = useState(false);
+  const [reviews, setReviews] = useState<VendorReview[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function loadReviews() {
+    if (reviews) {
+      setShowReviews((value) => !value);
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await api<VendorReview[]>(`/vendors/${vendor.id}/reviews`);
+      setReviews(data);
+      setShowReviews(true);
+    } catch {
+      setReviews([]);
+      setShowReviews(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <Card as="article" className="flex h-full flex-col p-5 transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-3">
@@ -41,16 +66,33 @@ export function VendorCard({ vendor }: { vendor: VendorSummary }) {
         )}
       </div>
 
-      <div className="mt-auto flex items-center gap-2 pt-5 text-xs font-semibold text-emerald-700">
-        <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-          <path
-            fillRule="evenodd"
-            d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.707-9.293a1 1 0 0 0-1.414-1.414L9 10.586 7.707 9.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4Z"
-            clipRule="evenodd"
-          />
-        </svg>
-        Verified vendor
+      <div className="mt-4 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          className={buttonStyles('ghost', 'sm')}
+          onClick={() => void loadReviews()}
+          disabled={loading}
+        >
+          {loading ? 'Loading…' : showReviews ? 'Hide reviews' : 'Show reviews'}
+        </button>
+        <span className="text-xs font-semibold text-emerald-700">Verified vendor</span>
       </div>
+
+      {showReviews && reviews && (
+        <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+          {reviews.length === 0 && <p className="text-xs text-slate-500">No reviews yet.</p>}
+          {reviews.map((review) => (
+            <div key={review.id} className="rounded-lg bg-slate-50 p-3">
+              <p className="text-xs font-semibold text-amber-600">
+                {'★'.repeat(review.rating)}
+                <span className="ml-2 font-normal text-slate-500">{review.society.name}</span>
+              </p>
+              {review.comment && <p className="mt-1 text-xs text-slate-600">{review.comment}</p>}
+              <p className="mt-1 text-[11px] text-slate-400">{formatDate(review.createdAt)}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

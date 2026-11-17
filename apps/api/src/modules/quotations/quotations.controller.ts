@@ -5,7 +5,10 @@ import { parsePagination } from '../../lib/pagination.js';
 import {
   getMyQuotation as getMyQuotationService,
   listRequestQuotations,
+  preferQuotation,
+  selectQuotation,
   upsertQuotation,
+  withdrawQuotation,
 } from './quotations.service.js';
 
 export const submitQuotation: RequestHandler = async (req, res) => {
@@ -33,4 +36,33 @@ export const listQuotations: RequestHandler = async (req, res) => {
   const page = parsePagination(req.query);
   const result = await listRequestQuotations(req.user, req.params.id as string, page);
   res.json({ data: result });
+};
+
+export const selectQuotationHandler: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+
+  const quotation = await selectQuotation(
+    req.user.id,
+    req.params.id as string,
+    req.params.quotationId as string,
+  );
+  res.json({ data: quotation });
+};
+
+export const preferQuotationHandler: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+
+  const quotation = await preferQuotation(
+    req.user.id,
+    req.params.id as string,
+    req.params.quotationId as string,
+  );
+  res.json({ data: quotation });
+};
+
+export const withdrawQuotationHandler: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+
+  const quotation = await withdrawQuotation(req.user.id, req.params.id as string);
+  res.json({ data: quotation });
 };

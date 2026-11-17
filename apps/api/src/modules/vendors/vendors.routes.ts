@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validateBody, validateParams } from '../../middleware/validate.js';
 import { getMyVendor, getVendor, listVendors, updateMyVendor } from './vendors.controller.js';
+import { listVendorReviewsHandler } from '../reviews/reviews.controller.js';
 
 const vendorParams = z.object({ id: uuidSchema });
 
@@ -21,3 +22,4 @@ vendorsRouter.patch(
 
 vendorsRouter.get('/', listVendors);
 vendorsRouter.get('/:id', validateParams(vendorParams), getVendor);
+vendorsRouter.get('/:id/reviews', validateParams(vendorParams), listVendorReviewsHandler);

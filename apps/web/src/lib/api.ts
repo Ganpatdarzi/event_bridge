@@ -349,6 +349,15 @@ export interface AdminStats {
   quotations: { total: number };
 }
 
+export interface VendorReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  society: { name: string };
+  request: { reference: string; title: string };
+}
+
 export interface AdminVendor {
   id: string;
   businessName: string;

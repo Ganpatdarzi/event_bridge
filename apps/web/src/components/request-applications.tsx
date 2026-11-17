@@ -1,15 +1,42 @@
+import { useState } from 'react';
 import { api, type RequestQuotationsPage } from '../lib/api.js';
 import { useApiQuery } from '../lib/use-api.js';
 import { formatDate, formatDateTime, formatMoney, humanize } from '../lib/format.js';
-import { Alert, Badge, LoadingBlock, StatusBadge } from './ui.js';
+import { Alert, Badge, buttonStyles, StatusBadge } from './ui.js';
 
-export function RequestApplications({ requestId }: { requestId: string }) {
+export function RequestApplications({
+  requestId,
+  canSelect = false,
+  onSelect,
+}: {
+  requestId: string;
+  canSelect?: boolean;
+  onSelect?: () => void;
+}) {
   const quotations = useApiQuery(
     () => api<RequestQuotationsPage>(`/requests/${requestId}/quotations?pageSize=50`),
     [requestId],
   );
 
   const items = quotations.data?.items ?? [];
+  const [compare, setCompare] = useState(false);
+  const [selecting, setSelecting] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  async function select(quotationId: string) {
+    setSelecting(quotationId);
+    setNotice(null);
+    try {
+      await api(`/requests/${requestId}/quotations/${quotationId}/select`, { method: 'POST' });
+      setNotice('Vendor selected. The request is now marked as selected.');
+      quotations.reload();
+      onSelect?.();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : 'Unable to select this vendor');
+    } finally {
+      setSelecting(null);
+    }
+  }
 
   return (
     <div className="mt-4 border-t border-slate-100 pt-4">
@@ -24,9 +51,67 @@ export function RequestApplications({ requestId }: { requestId: string }) {
         )}
       </div>
 
-      {quotations.loading && (
+      {notice && (
         <div className="mt-3">
-          <LoadingBlock label="Loading applications…" />
+          <Alert tone="success">{notice}</Alert>
+        </div>
+      )}
+
+      {items.length > 1 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            className={buttonStyles('ghost', 'sm')}
+            onClick={() => setCompare((value) => !value)}
+          >
+            {compare ? 'Hide comparison' : 'Compare side by side'}
+          </button>
+          {compare && (
+            <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Vendor</th>
+                    <th className="px-3 py-2 text-right">Total</th>
+                    <th className="px-3 py-2 text-right">Extras</th>
+                    <th className="px-3 py-2 text-left">Available</th>
+                    <th className="px-3 py-2 text-left">Valid until</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((quote) => (
+                    <tr key={quote.id} className="border-t border-slate-100">
+                      <td className="px-3 py-2 font-medium text-slate-900">
+                        {quote.vendor.businessName}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {formatMoney(quote.totalPrice)}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {quote.additionalCharges === null
+                          ? '—'
+                          : formatMoney(quote.additionalCharges)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {quote.availableOnDate === null
+                          ? '—'
+                          : quote.availableOnDate
+                            ? 'Yes'
+                            : 'No'}
+                      </td>
+                      <td className="px-3 py-2">
+                        {quote.validUntil ? formatDate(quote.validUntil) : '—'}
+                      </td>
+                      <td className="px-3 py-2">
+                        <StatusBadge status={quote.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -73,6 +158,17 @@ export function RequestApplications({ requestId }: { requestId: string }) {
                   <div className="mt-1 flex justify-end">
                     <StatusBadge status={quote.status} />
                   </div>
+                  {canSelect &&
+                    !['selected', 'not_selected', 'withdrawn'].includes(quote.status) && (
+                      <button
+                        type="button"
+                        className={buttonStyles('primary', 'sm')}
+                        disabled={selecting !== null}
+                        onClick={() => void select(quote.id)}
+                      >
+                        {selecting === quote.id ? 'Selecting…' : 'Select this vendor'}
+                      </button>
+                    )}
                 </div>
               </div>
 

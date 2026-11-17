@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import {
   QUOTATION_EDITABLE,
   REQUEST_ACCEPTS_QUOTES,
@@ -396,4 +396,184 @@ export async function listRequestQuotations(
     items: rows.map(mapQuotation),
     pagination: buildPagination(countRow?.total ?? 0, page),
   };
+}
+
+export async function selectQuotation(
+  userId: string,
+  requestId: string,
+  quotationId: string,
+): Promise<QuotationView> {
+  const [request] = await db
+    .select({
+      id: serviceRequests.id,
+      societyUserId: societies.userId,
+      status: serviceRequests.status,
+    })
+    .from(serviceRequests)
+    .innerJoin(societies, eq(societies.id, serviceRequests.societyId))
+    .where(eq(serviceRequests.id, requestId))
+    .limit(1);
+
+  if (!request) throw AppError.notFound('Request not found');
+  if (request.societyUserId !== userId) throw AppError.notFound('Request not found');
+
+  if (!['open', 'partially_quoted', 'quoted'].includes(request.status)) {
+    throw AppError.conflict('CONFLICT', 'This request can no longer be selected');
+  }
+
+  const [quote] = await db
+    .select()
+    .from(quotations)
+    .where(and(eq(quotations.id, quotationId), eq(quotations.requestId, requestId)))
+    .limit(1);
+
+  if (!quote || quote.status === 'withdrawn') {
+    throw AppError.notFound('Quotation not found');
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(quotations)
+      .set({ status: 'selected', updatedAt: new Date() })
+      .where(eq(quotations.id, quotationId));
+
+    await tx
+      .update(quotations)
+      .set({ status: 'not_selected', updatedAt: new Date() })
+      .where(
+        and(
+          eq(quotations.requestId, requestId),
+          ne(quotations.id, quotationId),
+          inArray(quotations.status, ['submitted', 'updated', 'preferred']),
+        ),
+      );
+
+    await tx
+      .update(serviceRequests)
+      .set({ status: 'selected', selectedQuotationId: quotationId, updatedAt: new Date() })
+      .where(eq(serviceRequests.id, requestId));
+
+    await writeAuditTx(tx, {
+      actorId: userId,
+      action: 'quotation.selected',
+      targetType: 'quotation',
+      targetId: quotationId,
+      metadata: { requestId },
+    });
+  });
+
+  return getQuotationById(quotationId);
+}
+
+export async function preferQuotation(
+  userId: string,
+  requestId: string,
+  quotationId: string,
+): Promise<QuotationView> {
+  const [request] = await db
+    .select({
+      id: serviceRequests.id,
+      societyUserId: societies.userId,
+      status: serviceRequests.status,
+    })
+    .from(serviceRequests)
+    .innerJoin(societies, eq(societies.id, serviceRequests.societyId))
+    .where(eq(serviceRequests.id, requestId))
+    .limit(1);
+
+  if (!request) throw AppError.notFound('Request not found');
+  if (request.societyUserId !== userId) throw AppError.notFound('Request not found');
+
+  if (!['open', 'partially_quoted', 'quoted'].includes(request.status)) {
+    throw AppError.conflict('CONFLICT', 'This request can no longer be preferred');
+  }
+
+  const [quote] = await db
+    .select()
+    .from(quotations)
+    .where(and(eq(quotations.id, quotationId), eq(quotations.requestId, requestId)))
+    .limit(1);
+
+  if (!quote || quote.status === 'withdrawn') {
+    throw AppError.notFound('Quotation not found');
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(quotations)
+      .set({ status: 'updated', updatedAt: new Date() })
+      .where(and(eq(quotations.requestId, requestId), eq(quotations.status, 'preferred')));
+
+    await tx
+      .update(quotations)
+      .set({ status: 'preferred', updatedAt: new Date() })
+      .where(eq(quotations.id, quotationId));
+
+    await writeAuditTx(tx, {
+      actorId: userId,
+      action: 'quotation.preferred',
+      targetType: 'quotation',
+      targetId: quotationId,
+      metadata: { requestId },
+    });
+  });
+
+  return getQuotationById(quotationId);
+}
+
+export async function withdrawQuotation(
+  userId: string,
+  quotationId: string,
+): Promise<QuotationView> {
+  const [vendor] = await db
+    .select({ id: vendors.id })
+    .from(vendors)
+    .where(eq(vendors.userId, userId))
+    .limit(1);
+
+  if (!vendor) throw AppError.notFound('Vendor profile not found');
+
+  const [row] = await db
+    .select({ quote: quotations, requestStatus: serviceRequests.status })
+    .from(quotations)
+    .innerJoin(serviceRequests, eq(serviceRequests.id, quotations.requestId))
+    .where(and(eq(quotations.id, quotationId), eq(quotations.vendorId, vendor.id)))
+    .limit(1);
+
+  if (!row) throw AppError.notFound('Quotation not found');
+
+  if (!['submitted', 'updated', 'preferred'].includes(row.quote.status)) {
+    throw AppError.conflict('CONFLICT', 'This quotation can no longer be withdrawn');
+  }
+
+  if (['selected', 'completed', 'closed', 'cancelled'].includes(row.requestStatus)) {
+    throw AppError.conflict('CONFLICT', 'This request no longer accepts withdrawals');
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(quotations)
+      .set({ status: 'withdrawn', updatedAt: new Date() })
+      .where(eq(quotations.id, quotationId));
+
+    await tx
+      .update(requestVendors)
+      .set({ distributionStatus: 'declined' })
+      .where(
+        and(
+          eq(requestVendors.requestId, row.quote.requestId),
+          eq(requestVendors.vendorId, vendor.id),
+        ),
+      );
+
+    await writeAuditTx(tx, {
+      actorId: userId,
+      action: 'quotation.withdrawn',
+      targetType: 'quotation',
+      targetId: quotationId,
+      metadata: { requestId: row.quote.requestId },
+    });
+  });
+
+  return getQuotationById(quotationId);
 }
