@@ -39,7 +39,8 @@ npm run db:migrate -w @event-bridge/api
 2. Go to <https://vercel.com/new> and **Import** `Ganpatdarzi/event_bridge`.
    - Use your **personal** account. Vercel Hobby cannot import repositories owned by organizations.
 3. Framework preset: **Other**. Vercel will detect the root `vercel.json`:
-   - Install: `npm ci --include=dev`
+   - Install: `HUSKY=0 NODE_ENV=development npm ci`
+     (Vercel defaults to `NODE_ENV=production`, which makes npm omit the dev dependencies that `tsc` needs; `HUSKY=0` skips local git-hook setup in CI.)
    - Build: `npm run build:shared && npm run build -w @event-bridge/api`
    - Rewrite: every path -> `/api/index` (the Express app in `api/index.js`).
 4. Add these **Environment Variables** (Production + Preview):

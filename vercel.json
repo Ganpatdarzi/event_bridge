@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm ci --include=dev",
+  "installCommand": "HUSKY=0 NODE_ENV=development npm ci",
   "buildCommand": "npm run build:shared && npm run build -w @event-bridge/api",
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
 }
