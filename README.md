@@ -124,7 +124,11 @@ These are early signals from a small convenience sample — not proof of product
 - [x] Society profile management
 - [x] Vendor business profile: categories, service area, description
 - [x] Administrator review of vendor applications (approve / reject / request changes)
+- [x] Administrator user management (suspend, reactivate, deactivate)
 - [x] Administrator-managed service categories
+- [x] Administrator monitoring of quotation requests and applications
+- [x] Administrator review moderation (hide / restore)
+- [x] Administrator audit log and system settings
 - [x] Event and service-request creation (date, location, budget, quantity, description)
 - [x] Category-based vendor matching and request distribution
 - [x] Structured quotation submission (price, scope, inclusions, exclusions, validity), editable until the request closes
@@ -138,8 +142,8 @@ These are early signals from a small convenience sample — not proof of product
 
 - [ ] Portfolio image uploads
 - [x] Search and filtering (vendor directory)
-- [ ] Reviews and ratings after completed engagements
-- [ ] Audit log UI
+- [ ] Reviews and ratings after completed engagements (admin moderation shipped)
+- [x] Audit log UI
 - [x] Basic analytics for the administrator (platform stats)
 - [ ] Multiple representatives per society
 
@@ -475,6 +479,11 @@ Planned, not shipped yet: `GET /quotations`, `GET /quotations/:id`,
 | POST   | `/admin/users/:id/reactivate`          | Admin  | Reactivate account         |
 | POST   | `/admin/users/:id/deactivate`          | Admin  | Deactivate account         |
 | GET    | `/admin/audit-logs`                    | Admin  | Filterable audit trail     |
+| GET    | `/admin/reviews`                       | Admin  | Moderation list            |
+| POST   | `/admin/reviews/:id/hide`              | Admin  | Hide a review              |
+| POST   | `/admin/reviews/:id/unhide`            | Admin  | Restore a review           |
+| GET    | `/admin/settings`                      | Admin  | List system settings       |
+| PUT    | `/admin/settings/:key`                 | Admin  | Create or update a setting |
 | GET    | `/admin/stats`                         | Admin  | Dashboard counts           |
 
 ### Notifications
@@ -693,15 +702,15 @@ npm run db:reset      # drop + recreate + seed (dev only)
 The web app is a single-page React application. Every dashboard is guarded by role, so sign in
 with one of the seeded accounts above to see the matching view.
 
-| Route       | Audience | What it does                                                                     |
-| ----------- | -------- | -------------------------------------------------------------------------------- |
-| `/`         | Public   | Landing page: value proposition, categories, how it works and featured vendors   |
-| `/vendors`  | Public   | Verified vendor directory with keyword, city and category filters                |
-| `/login`    | Public   | Sign in; the demo-account buttons fill in seeded credentials                     |
-| `/register` | Public   | Create a society account or apply as a vendor (with a category picker)           |
-| `/society`  | Society  | Request stats, request list, new-request form and expandable vendor applications |
-| `/vendor`   | Vendor   | Verification status, public profile preview, matched requests and quotation form |
-| `/admin`    | Admin    | Platform stats, vendor approval/rejection queue and category oversight           |
+| Route       | Audience | What it does                                                                                 |
+| ----------- | -------- | -------------------------------------------------------------------------------------------- |
+| `/`         | Public   | Landing page: value proposition, categories, how it works and featured vendors               |
+| `/vendors`  | Public   | Verified vendor directory with keyword, city and category filters                            |
+| `/login`    | Public   | Sign in; the demo-account buttons fill in seeded credentials                                 |
+| `/register` | Public   | Create a society account or apply as a vendor (with a category picker)                       |
+| `/society`  | Society  | Request stats, request list, new-request form and expandable vendor applications             |
+| `/vendor`   | Vendor   | Verification status, public profile preview, matched requests and quotation form             |
+| `/admin`    | Admin    | Platform stats, user/vendor management, categories, requests, reviews, activity and settings |
 
 > Signed-in users also get a notification bell with unread counts and mark-as-read controls.
 > Society request cards expand to show each vendor's quotation; vendor cards open an inline form
