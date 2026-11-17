@@ -252,7 +252,7 @@ function VendorDashboard() {
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.5fr]">
-        <section>
+        <section id="profile">
           <SectionHeading title="Business profile" description="How societies see your business." />
           {profile.loading && <LoadingBlock label="Loading profile…" />}
           {profile.error && <Alert tone="error">{profile.error}</Alert>}
@@ -508,7 +508,7 @@ function VendorDashboard() {
           )}
         </section>
 
-        <section>
+        <section id="requests">
           <SectionHeading
             title="Matched requests"
             description="Requests distributed to you based on your service categories."
@@ -610,7 +610,7 @@ function VendorDashboard() {
         </section>
       </div>
 
-      <section className="mt-10">
+      <section id="quotations" className="mt-10">
         <SectionHeading title="My quotations" description="Quotations you have submitted." />
         {myQuotations.loading && <LoadingBlock label="Loading quotations…" />}
         {myQuotations.error && <Alert tone="error">{myQuotations.error}</Alert>}
@@ -641,7 +641,7 @@ function VendorDashboard() {
         </div>
       </section>
 
-      <section className="mt-10">
+      <section id="reviews" className="mt-10">
         <SectionHeading
           title="Your reviews"
           description="Feedback from societies you have worked with."
@@ -670,7 +670,7 @@ function VendorDashboard() {
         </div>
       </section>
 
-      <section className="mt-10">
+      <section id="settings" className="mt-10">
         <SectionHeading title="Settings" description="Account and notification preferences." />
         <Card className="p-6">
           <dl className="space-y-2 text-sm">

@@ -126,7 +126,7 @@ function SocietyDashboard() {
         }
       />
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div id="overview" className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="Total requests"
           value={requests.loading ? '—' : items.length}
@@ -142,7 +142,7 @@ function SocietyDashboard() {
       </div>
 
       {showForm && (
-        <div className="mt-8">
+        <div id="create" className="mt-8">
           <CreateRequestForm
             categories={categories.data ?? []}
             onCreated={() => {
@@ -154,7 +154,7 @@ function SocietyDashboard() {
         </div>
       )}
 
-      <section className="mt-10">
+      <section id="requests" className="mt-10">
         <SectionHeading
           title="Your requests"
           description="Each request is distributed to matching verified vendors. Expand a request to review the applications it received."
@@ -289,7 +289,7 @@ function SocietyDashboard() {
         </div>
       </section>
 
-      <section className="mt-10">
+      <section id="selected" className="mt-10">
         <SectionHeading
           title="Selected vendors"
           description="Vendors you have chosen for your requests."
@@ -320,7 +320,7 @@ function SocietyDashboard() {
         )}
       </section>
 
-      <section className="mt-10">
+      <section id="profile" className="mt-10">
         <SectionHeading
           title="Profile settings"
           description="Manage your society profile visible to vendors."

@@ -53,27 +53,80 @@ export function AppShell() {
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-            <NavLink to="/" className={navLinkClass}>
-              Home
-            </NavLink>
-            <NavLink to="/about" className={navLinkClass}>
-              About
-            </NavLink>
-            <a
-              href="/how-it-works"
-              className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            >
-              How it works
-            </a>
-            <NavLink to="/categories" className={navLinkClass}>
-              Categories
-            </NavLink>
-            <NavLink to="/vendors" className={navLinkClass}>
-              Vendors
-            </NavLink>
-            <NavLink to="/contact" className={navLinkClass}>
-              Contact
-            </NavLink>
+            {user ? (
+              <>
+                {user.role === 'society' && (
+                  <>
+                    <NavLink to="/society#overview" className={navLinkClass}>
+                      Overview
+                    </NavLink>
+                    <NavLink to="/society#create" className={navLinkClass}>
+                      Create request
+                    </NavLink>
+                    <NavLink to="/society#requests" className={navLinkClass}>
+                      My requests
+                    </NavLink>
+                    <NavLink to="/society#selected" className={navLinkClass}>
+                      Selected
+                    </NavLink>
+                    <NavLink to="/society#profile" className={navLinkClass}>
+                      Profile
+                    </NavLink>
+                  </>
+                )}
+                {user.role === 'vendor' && (
+                  <>
+                    <NavLink to="/vendor#profile" className={navLinkClass}>
+                      Profile
+                    </NavLink>
+                    <NavLink to="/vendor#requests" className={navLinkClass}>
+                      Requests
+                    </NavLink>
+                    <NavLink to="/vendor#quotations" className={navLinkClass}>
+                      Quotations
+                    </NavLink>
+                    <NavLink to="/vendor#reviews" className={navLinkClass}>
+                      Reviews
+                    </NavLink>
+                    <NavLink to="/vendor#settings" className={navLinkClass}>
+                      Settings
+                    </NavLink>
+                  </>
+                )}
+                {user.role === 'admin' && (
+                  <NavLink to="/admin" className={navLinkClass}>
+                    Dashboard
+                  </NavLink>
+                )}
+                <NavLink to="/vendors" className={navLinkClass}>
+                  Vendors
+                </NavLink>
+              </>
+            ) : (
+              <>
+                <NavLink to="/" className={navLinkClass}>
+                  Home
+                </NavLink>
+                <NavLink to="/about" className={navLinkClass}>
+                  About
+                </NavLink>
+                <a
+                  href="/how-it-works"
+                  className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                >
+                  How it works
+                </a>
+                <NavLink to="/categories" className={navLinkClass}>
+                  Categories
+                </NavLink>
+                <NavLink to="/vendors" className={navLinkClass}>
+                  Vendors
+                </NavLink>
+                <NavLink to="/contact" className={navLinkClass}>
+                  Contact
+                </NavLink>
+              </>
+            )}
           </nav>
 
           <div className="flex items-center gap-2">
