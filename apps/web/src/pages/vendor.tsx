@@ -115,7 +115,7 @@ function VendorDashboard() {
                 </div>
                 <Badge tone="brand">
                   {profile.data.rating.count > 0
-                    ? `★ ${profile.data.rating.average.toFixed(1)}`
+                    ? `★ ${profile.data.rating.average?.toFixed(1) ?? '—'}`
                     : 'New'}
                 </Badge>
               </div>

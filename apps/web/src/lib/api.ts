@@ -236,7 +236,7 @@ export interface VendorCategory {
 }
 
 export interface VendorRating {
-  average: number;
+  average: number | null;
   count: number;
 }
 
@@ -310,7 +310,7 @@ export interface AdminVendor {
   rejectionReason: string | null;
   contactPerson: string | null;
   contactPhone: string | null;
-  contactEmail: string | null;
   createdAt: string;
   categories: VendorCategory[];
+  user: { id: string; name: string; email: string; status: string };
 }

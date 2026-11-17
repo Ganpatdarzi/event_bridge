@@ -1,12 +1,12 @@
 import type { VendorSummary } from '../lib/api.js';
 import { Badge, Card } from './ui.js';
 
-function Stars({ average, count }: { average: number; count: number }) {
+function Stars({ average, count }: { average: number | null; count: number }) {
   if (!count) return <span className="text-xs font-medium text-slate-400">New vendor</span>;
   return (
     <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
       <span aria-hidden="true">★</span>
-      {average.toFixed(1)}
+      {average?.toFixed(1) ?? '—'}
       <span className="font-normal text-slate-400">({count})</span>
     </span>
   );

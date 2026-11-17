@@ -200,7 +200,7 @@ function AdminDashboard() {
 
                   <p className="mt-3 text-xs text-slate-500">
                     {vendor.contactPerson ?? 'No contact person'}
-                    {vendor.contactEmail ? ` · ${vendor.contactEmail}` : ''}
+                    {vendor.user.email ? ` · ${vendor.user.email}` : ''}
                     {vendor.contactPhone ? ` · ${vendor.contactPhone}` : ''}
                   </p>
                 </div>
