@@ -1,3 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ *
+ * Design tokens
+ * ------------------------------------------------------------------ */
 :root {
   color-scheme: light dark;
   --bg: #f7f7f5;
@@ -6,6 +13,7 @@
   --card: #ffffff;
   --border: #e2e4e7;
   --brand: #0f766e;
+  --brand-contrast: #ffffff;
   --warn: #b45309;
   font-family:
     ui-sans-serif,
@@ -17,6 +25,19 @@
   line-height: 1.6;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101417;
+    --fg: #e8ecef;
+    --muted: #a2adb5;
+    --card: #171d21;
+    --border: #283137;
+    --brand: #5eead4;
+    --brand-contrast: #06251f;
+    --warn: #fbbf24;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -25,12 +46,20 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
+  min-height: 100vh;
 }
 
+/* ------------------------------------------------------------------ *
+ * Layout
+ * ------------------------------------------------------------------ */
 .shell {
   max-width: 960px;
   margin: 0 auto;
   padding: 3rem 1.25rem 4rem;
+}
+
+.hero {
+  margin-bottom: 0.5rem;
 }
 
 .eyebrow {
@@ -88,6 +117,41 @@ li + li {
   margin-top: 0.35rem;
 }
 
+/* ------------------------------------------------------------------ *
+ * Navigation
+ * ------------------------------------------------------------------ */
+.main-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--brand);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--brand);
+  text-decoration: none;
+  background: transparent;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.nav-btn:hover {
+  background: var(--brand);
+  color: var(--brand-contrast);
+}
+
+/* ------------------------------------------------------------------ *
+ * Status text and inline elements
+ * ------------------------------------------------------------------ */
 .ok {
   color: var(--brand);
   font-weight: 600;
@@ -110,17 +174,23 @@ code {
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101417;
-    --fg: #e8ecef;
-    --muted: #a2adb5;
-    --card: #171d21;
-    --border: #283137;
-    --brand: #5eead4;
-    --warn: #fbbf24;
-  }
-
   code {
     background: #232c32;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Accessibility
+ * ------------------------------------------------------------------ */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
   }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 type HealthState =
   | { status: 'loading' }
@@ -31,8 +32,9 @@ export function App() {
         <p className="eyebrow">Event Bridge</p>
         <h1>One request. Multiple quotes. One place to compare.</h1>
         <p className="lede">
-          A multi-vendor marketplace for university society event services. The foundation is in
-          place: workspace, database schema, migrations, seed data and authentication API.
+          A multi-vendor marketplace for university society event services. Societies publish a
+          single request, verified vendors respond with structured quotations, and everyone compares
+          the offers side by side.
         </p>
       </header>
 
@@ -51,6 +53,21 @@ export function App() {
         )}
       </section>
 
+      <nav className="main-nav" aria-label="Primary">
+        <Link className="nav-btn" to="/society">
+          Society
+        </Link>
+        <Link className="nav-btn" to="/vendor">
+          Vendor
+        </Link>
+        <Link className="nav-btn" to="/admin">
+          Admin
+        </Link>
+        <a className="nav-btn" href="/api/v1">
+          API
+        </a>
+      </nav>
+
       <section className="grid">
         <article className="card">
           <h2>Built so far</h2>
@@ -59,16 +76,17 @@ export function App() {
             <li>Shared enums, status machines and Zod schemas</li>
             <li>Full Neon/Postgres schema, migrations and seed data</li>
             <li>Register, login, refresh, logout and session endpoints</li>
+            <li>Profiles, categories, admin review and request distribution</li>
           </ul>
         </article>
 
         <article className="card">
           <h2>Next up</h2>
           <ul>
-            <li>Categories and profile endpoints</li>
-            <li>Admin vendor verification</li>
-            <li>Requests, matching and quotations</li>
+            <li>Quotation submission and comparison</li>
+            <li>Preferred / selected quotation recording</li>
             <li>Society, vendor and admin dashboards</li>
+            <li>Notifications, reviews and portfolio uploads</li>
           </ul>
         </article>
       </section>

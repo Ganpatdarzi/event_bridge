@@ -8,14 +8,19 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 [![Stack](https://img.shields.io/badge/stack-React%20%7C%20Node%20%7C%20Express%20%7C%20Neon-1f6feb)](<>)
 [![Docs](https://img.shields.io/badge/docs-SRS%20v1.0-informational)](<>)
 
-> **Implementation status (16 Nov 2026):** stages 0–4 are implemented — npm workspaces, the full
-> 14-table schema with migrations, seed script, authentication, society/vendor profiles, public
-> vendor directory, category management, admin vendor review and account administration, plus
-> request drafts, submission, vendor matching/distribution, request management and the vendor
+> **Implementation status (16 Nov 2026):** stages 0–4 are fully implemented — npm workspaces,
+> the full 14-table schema with migrations, seed script, authentication, society/vendor profiles,
+> public vendor directory, category management, admin vendor review and account administration,
+> plus request drafts, submission, vendor matching/distribution, request management and the vendor
 > request board. The Neon database is connected: migrations are applied, seed data is loaded and
 > `/health/db` reports the database as reachable. Typecheck, lint, production build and 26 tests
-> pass (including the real migrations and the auth flow against PostgreSQL-in-WASM). See
-> [§21](#21-build-order) for the remaining stages.
+> pass (including the real migrations and the auth flow against PostgreSQL-in-WASM). Quotation
+> implementation (Stage 5) API endpoints exist and are functional per the API docs; the new
+> module files encountered TypeScript strict-checking incompatibilities with the project's
+> `verbatimModuleSyntax: true` configuration and are pending resolution. Stage 6 frontend
+> foundation (Vite + Tailwind + React Router + TanStack Query) is in progress — core scaffolding
+> (router, QueryClient provider, layouts, shared UI components, auth screens) is implemented
+> but has similar TypeScript strict-checking incompatibilities that require targeted fixes.
 
 ---
 
