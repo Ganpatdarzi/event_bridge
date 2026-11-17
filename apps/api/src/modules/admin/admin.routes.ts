@@ -1,15 +1,19 @@
 import { Router } from 'express';
-import { decisionReasonSchema, uuidSchema } from '@event-bridge/shared';
+import { decisionReasonSchema, optionalReasonSchema, uuidSchema } from '@event-bridge/shared';
 import { z } from 'zod';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validateBody, validateParams } from '../../middleware/validate.js';
 import { listCategoriesForAdmin } from '../categories/categories.controller.js';
+import { systemSettingUpdateSchema } from './admin.schema.js';
 import {
   approveVendor,
   deactivateUser,
   getAuditLogs,
   getStats,
+  hideReview,
   listAccounts,
+  listReviews,
+  listSettings,
   listVendorQueue,
   reactivateUser,
   rejectVendor,
@@ -17,6 +21,8 @@ import {
   restoreVendor,
   suspendUser,
   suspendVendor,
+  unhideReview,
+  updateSetting,
 } from './admin.controller.js';
 
 const idParams = z.object({ id: uuidSchema });
@@ -50,3 +56,20 @@ adminRouter.get('/users', listAccounts);
 adminRouter.post('/users/:id/suspend', validateParams(idParams), suspendUser);
 adminRouter.post('/users/:id/reactivate', validateParams(idParams), reactivateUser);
 adminRouter.post('/users/:id/deactivate', validateParams(idParams), deactivateUser);
+
+adminRouter.get('/reviews', listReviews);
+adminRouter.post(
+  '/reviews/:id/hide',
+  validateParams(idParams),
+  validateBody(optionalReasonSchema),
+  hideReview,
+);
+adminRouter.post('/reviews/:id/unhide', validateParams(idParams), unhideReview);
+
+adminRouter.get('/settings', listSettings);
+adminRouter.put(
+  '/settings/:key',
+  validateParams(z.object({ key: z.string().trim().min(1).max(120) })),
+  validateBody(systemSettingUpdateSchema),
+  updateSetting,
+);

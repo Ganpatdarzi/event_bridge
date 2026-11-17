@@ -6,6 +6,7 @@ export * from './categories.js';
 export * from './vendor-categories.js';
 export * from './events.js';
 export * from './service-requests.js';
+export * from './system-settings.js';
 export * from './request-vendors.js';
 export * from './quotations.js';
 export * from './reviews.js';

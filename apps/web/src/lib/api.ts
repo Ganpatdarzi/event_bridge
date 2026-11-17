@@ -363,3 +363,41 @@ export interface AdminVendor {
   categories: VendorCategory[];
   user: { id: string; name: string; email: string; status: string };
 }
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  createdAt: string;
+  society: { id: string; name: string } | null;
+  vendor: { id: string; businessName: string; verificationStatus: string } | null;
+}
+
+export interface AdminReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  isHidden: boolean;
+  createdAt: string;
+  society: { id: string; name: string };
+  vendor: { id: string; businessName: string };
+  request: { id: string; reference: string; title: string };
+}
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  metadata: unknown;
+  createdAt: string;
+  actor: { id: string; name: string; email: string } | null;
+}
+
+export interface SystemSetting {
+  key: string;
+  value: string;
+  updatedAt: string;
+  updatedBy: string | null;
+}

@@ -36,6 +36,7 @@ describe('initial migration', () => {
       'reviews',
       'service_requests',
       'societies',
+      'system_settings',
       'users',
       'vendor_categories',
       'vendors',

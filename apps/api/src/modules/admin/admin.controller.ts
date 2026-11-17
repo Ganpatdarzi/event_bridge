@@ -3,6 +3,7 @@ import { optionalReasonSchema } from '@event-bridge/shared';
 import { AppError } from '../../lib/errors.js';
 import { parsePagination } from '../../lib/pagination.js';
 import {
+  adminReviewQuerySchema,
   adminUserQuerySchema,
   adminVendorQuerySchema,
   auditLogQuerySchema,
@@ -11,9 +12,13 @@ import {
   changeUserStatus,
   getAdminStats,
   listAuditLogs,
+  listReviewsForAdmin,
+  listSystemSettings,
   listUsers,
   listVendorsForReview,
+  moderateReview,
   reviewVendor,
+  upsertSystemSetting,
 } from './admin.service.js';
 
 function optionalReason(body: unknown): string | undefined {
@@ -117,4 +122,39 @@ export const getAuditLogs: RequestHandler = async (req, res) => {
 export const getStats: RequestHandler = async (_req, res) => {
   const stats = await getAdminStats();
   res.json({ data: stats });
+};
+
+export const listReviews: RequestHandler = async (req, res) => {
+  const page = parsePagination(req.query);
+  const filter = adminReviewQuerySchema.parse(req.query);
+  const result = await listReviewsForAdmin({ ...page, ...filter });
+  res.json({ data: result });
+};
+
+export const hideReview: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+  const review = await moderateReview(
+    req.user.id,
+    req.params.id as string,
+    'hide',
+    optionalReason(req.body),
+  );
+  res.json({ data: review });
+};
+
+export const unhideReview: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+  const review = await moderateReview(req.user.id, req.params.id as string, 'unhide');
+  res.json({ data: review });
+};
+
+export const listSettings: RequestHandler = async (_req, res) => {
+  const settings = await listSystemSettings();
+  res.json({ data: settings });
+};
+
+export const updateSetting: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+  const setting = await upsertSystemSetting(req.user.id, req.params.key as string, req.body.value);
+  res.json({ data: setting });
 };

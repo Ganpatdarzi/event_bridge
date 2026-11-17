@@ -13,8 +13,10 @@ import {
   categories,
   quotations,
   refreshTokens,
+  reviews,
   serviceRequests,
   societies,
+  systemSettings,
   users,
   vendorCategories,
   vendors,
@@ -735,4 +737,215 @@ export async function getAdminStats() {
       total: quoteRows[0]?.total ?? 0,
     },
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Review moderation                                                  */
+/* ------------------------------------------------------------------ */
+
+export interface AdminReviewFilter extends PageRequest {
+  hidden?: boolean | undefined;
+  vendorId?: string | undefined;
+  search?: string | undefined;
+}
+
+export interface AdminReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  isHidden: boolean;
+  createdAt: Date;
+  society: { id: string; name: string };
+  vendor: { id: string; businessName: string };
+  request: { id: string; reference: string; title: string };
+}
+
+export async function listReviewsForAdmin(
+  filter: AdminReviewFilter,
+): Promise<{ items: AdminReview[]; pagination: PaginationMeta }> {
+  const conditions: SQL[] = [];
+
+  if (filter.hidden !== undefined) {
+    conditions.push(eq(reviews.isHidden, filter.hidden));
+  }
+  if (filter.vendorId) {
+    conditions.push(eq(reviews.vendorId, filter.vendorId));
+  }
+  if (filter.search) {
+    const pattern = likePattern(filter.search);
+    const searchCondition = or(
+      ilike(vendors.businessName, pattern),
+      ilike(societies.name, pattern),
+      ilike(serviceRequests.title, pattern),
+      ilike(reviews.comment, pattern),
+    );
+    if (searchCondition) conditions.push(searchCondition);
+  }
+
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const [countRow] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(reviews)
+    .innerJoin(societies, eq(societies.id, reviews.societyId))
+    .innerJoin(vendors, eq(vendors.id, reviews.vendorId))
+    .innerJoin(serviceRequests, eq(serviceRequests.id, reviews.requestId))
+    .where(where);
+
+  const rows = await db
+    .select({
+      id: reviews.id,
+      rating: reviews.rating,
+      comment: reviews.comment,
+      isHidden: reviews.isHidden,
+      createdAt: reviews.createdAt,
+      societyId: societies.id,
+      societyName: societies.name,
+      vendorId: vendors.id,
+      vendorName: vendors.businessName,
+      requestId: serviceRequests.id,
+      requestReference: serviceRequests.reference,
+      requestTitle: serviceRequests.title,
+    })
+    .from(reviews)
+    .innerJoin(societies, eq(societies.id, reviews.societyId))
+    .innerJoin(vendors, eq(vendors.id, reviews.vendorId))
+    .innerJoin(serviceRequests, eq(serviceRequests.id, reviews.requestId))
+    .where(where)
+    .orderBy(desc(reviews.createdAt))
+    .limit(filter.limit)
+    .offset(filter.offset);
+
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      rating: row.rating,
+      comment: row.comment,
+      isHidden: row.isHidden,
+      createdAt: row.createdAt,
+      society: { id: row.societyId, name: row.societyName },
+      vendor: { id: row.vendorId, businessName: row.vendorName },
+      request: { id: row.requestId, reference: row.requestReference, title: row.requestTitle },
+    })),
+    pagination: buildPagination(countRow?.total ?? 0, filter),
+  };
+}
+
+export async function moderateReview(
+  actorId: string,
+  reviewId: string,
+  action: 'hide' | 'unhide',
+  reason?: string,
+): Promise<AdminReview> {
+  await db.transaction(async (tx) => {
+    const [review] = await tx
+      .select()
+      .from(reviews)
+      .where(eq(reviews.id, reviewId))
+      .for('update')
+      .limit(1);
+
+    if (!review) {
+      throw AppError.notFound('Review not found');
+    }
+
+    const nextHidden = action === 'hide';
+    if (review.isHidden === nextHidden) {
+      throw AppError.ruleViolation(`This review is already ${nextHidden ? 'hidden' : 'visible'}.`);
+    }
+
+    await tx.update(reviews).set({ isHidden: nextHidden }).where(eq(reviews.id, review.id));
+
+    await writeAuditTx(tx, {
+      actorId,
+      action: nextHidden ? 'review.hidden' : 'review.unhidden',
+      targetType: 'review',
+      targetId: review.id,
+      metadata: { reason: reason ?? null, rating: review.rating },
+    });
+  });
+
+  const { items } = await listReviewsForAdmin({
+    page: 1,
+    pageSize: 1,
+    limit: 1000,
+    offset: 0,
+  });
+  const found = items.find((item) => item.id === reviewId);
+  if (!found) {
+    throw AppError.notFound('Review not found');
+  }
+  return found;
+}
+
+/* ------------------------------------------------------------------ */
+/* System settings                                                    */
+/* ------------------------------------------------------------------ */
+
+export interface SystemSettingView {
+  key: string;
+  value: string;
+  updatedAt: Date;
+  updatedBy: string | null;
+}
+
+export async function listSystemSettings(): Promise<SystemSettingView[]> {
+  const rows = await db
+    .select({
+      key: systemSettings.key,
+      value: systemSettings.value,
+      updatedAt: systemSettings.updatedAt,
+      updatedBy: systemSettings.updatedBy,
+    })
+    .from(systemSettings)
+    .orderBy(systemSettings.key);
+
+  return rows;
+}
+
+export async function upsertSystemSetting(
+  actorId: string,
+  key: string,
+  value: string,
+): Promise<SystemSettingView> {
+  const [existing] = await db
+    .select()
+    .from(systemSettings)
+    .where(eq(systemSettings.key, key))
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(systemSettings)
+      .set({ value, updatedAt: new Date(), updatedBy: actorId })
+      .where(eq(systemSettings.key, key));
+  } else {
+    await db.insert(systemSettings).values({ key, value, updatedBy: actorId });
+  }
+
+  await db.transaction(async (tx) => {
+    await writeAuditTx(tx, {
+      actorId,
+      action: 'settings.updated',
+      targetType: 'system_setting',
+      targetId: key,
+      metadata: { value },
+    });
+  });
+
+  const [row] = await db
+    .select({
+      key: systemSettings.key,
+      value: systemSettings.value,
+      updatedAt: systemSettings.updatedAt,
+      updatedBy: systemSettings.updatedBy,
+    })
+    .from(systemSettings)
+    .where(eq(systemSettings.key, key))
+    .limit(1);
+
+  if (!row) {
+    throw AppError.notFound('Setting not found');
+  }
+  return row;
 }

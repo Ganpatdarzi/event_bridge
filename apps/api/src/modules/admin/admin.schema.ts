@@ -31,6 +31,16 @@ export const auditLogQuerySchema = z
     path: ['from'],
   });
 
-export type AdminVendorQuery = z.infer<typeof adminVendorQuerySchema>;
+export const adminReviewQuerySchema = z.object({
+  hidden: z.coerce.boolean().optional(),
+  vendorId: uuidSchema.optional(),
+  search: z.string().trim().min(1).max(120).optional(),
+});
+
+export const systemSettingUpdateSchema = z.object({
+  value: z.string().trim().min(1).max(10000),
+});
+
+export type AdminReviewQuery = z.infer<typeof adminReviewQuerySchema>;
 export type AdminUserQuery = z.infer<typeof adminUserQuerySchema>;
 export type AuditLogQuery = z.infer<typeof auditLogQuerySchema>;
