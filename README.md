@@ -133,8 +133,8 @@ These are early signals from a small convenience sample — not proof of product
 - [x] Category-based vendor matching and request distribution
 - [x] Structured quotation submission (price, scope, inclusions, exclusions, validity), editable until the request closes
 - [x] Society quotation listing and per-request application review
-- [ ] Side-by-side comparison view and preferred/selected quotation recording with audit trail
-- [x] Request status tracking (`open` → `partially_quoted` on the first quotation; `quoted`/`selected` still planned)
+- [x] Side-by-side comparison view and preferred/selected quotation recording with audit trail
+- [x] Request status tracking (`open` -> `partially_quoted` on the first quotation; selection moves to `selected`)
 - [x] In-app notifications with unread counts, a header bell and mark-as-read controls
 - [x] Dashboards for society, vendor and administrator, including the quotation and application flows
 
@@ -142,7 +142,7 @@ These are early signals from a small convenience sample — not proof of product
 
 - [ ] Portfolio image uploads
 - [x] Search and filtering (vendor directory)
-- [ ] Reviews and ratings after completed engagements (admin moderation shipped)
+- [x] Reviews and ratings after completed engagements (admin moderation included)
 - [x] Audit log UI
 - [x] Basic analytics for the administrator (platform stats)
 - [ ] Multiple representatives per society
