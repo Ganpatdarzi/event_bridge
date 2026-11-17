@@ -292,6 +292,55 @@ export interface VendorRequestListItem extends RequestListItem {
   hasQuoted: boolean;
 }
 
+export interface QuotationVendorSummary {
+  id: string;
+  businessName: string;
+  city: string;
+  serviceArea: string | null;
+  contactPerson: string | null;
+  contactPhone: string | null;
+  contactEmail: string;
+}
+
+export interface Quotation {
+  id: string;
+  reference: string;
+  requestId: string;
+  vendor: QuotationVendorSummary;
+  totalPrice: number;
+  currency: string;
+  description: string;
+  inclusions: string | null;
+  exclusions: string | null;
+  additionalCharges: number | null;
+  availableOnDate: boolean | null;
+  validUntil: string | null;
+  notes: string | null;
+  status: string;
+  submittedAt: string;
+  updatedAt: string;
+}
+
+export interface RequestQuotationsPage extends Paginated<Quotation> {
+  requestId: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationsPage {
+  items: NotificationItem[];
+  unreadCount: number;
+  pagination: PaginationMeta;
+}
+
 export interface AdminStats {
   users: { total: number; byRole: Record<string, number>; byStatus: Record<string, number> };
   vendors: { total: number; byStatus: Record<string, number> };

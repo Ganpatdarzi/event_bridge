@@ -416,7 +416,7 @@ async function submitRequestTx(tx: Transaction, requestId: string, actorId: stri
         body: `${society.name} needs "${request.title}" for ${event?.name ?? 'an event'}${
           deadline ? ` (quotes close ${deadline})` : ''
         }.`,
-        link: `/vendor/requests/${request.id}`,
+        link: '/vendor',
       })),
     );
   }
@@ -1217,7 +1217,7 @@ export async function cancelRequest(
       type: 'request_closed',
       title: 'Request cancelled',
       body: `${society.name} cancelled "${request.title}".`,
-      link: `/vendor/requests/${request.id}`,
+      link: '/vendor',
     });
 
     await writeAuditTx(tx, {
@@ -1276,7 +1276,7 @@ export async function closeRequest(
       type: 'request_closed',
       title: 'Request closed',
       body: `${society.name} closed "${request.title}".`,
-      link: `/vendor/requests/${request.id}`,
+      link: '/vendor',
     });
 
     await writeAuditTx(tx, {

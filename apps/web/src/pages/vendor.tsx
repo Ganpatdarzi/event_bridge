@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { api, type MyVendor, type Paginated, type VendorRequestListItem } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { useApiQuery } from '../lib/use-api.js';
@@ -5,6 +6,7 @@ import { formatBudget, formatDate, formatDateTime, humanize } from '../lib/forma
 import {
   Alert,
   Badge,
+  buttonStyles,
   Card,
   EmptyState,
   LoadingBlock,
@@ -14,6 +16,7 @@ import {
   StatusBadge,
 } from '../components/ui.js';
 import { AuthGate } from '../components/auth-gate.js';
+import { QuotationForm } from '../components/quotation-form.js';
 
 export function VendorPage() {
   return (
@@ -30,6 +33,7 @@ const emptyPage: Paginated<VendorRequestListItem> = {
 
 function VendorDashboard() {
   const { user } = useAuth();
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
 
   const profile = useApiQuery(() => api<MyVendor>('/vendors/me'), []);
   const requestBoard = useApiQuery(async () => {
@@ -47,7 +51,7 @@ function VendorDashboard() {
       <PageHeader
         eyebrow="Vendor dashboard"
         title={`Hello, ${user?.name.split(' ')[0] ?? 'there'}`}
-        description="Track your verification, browse matched requests and keep your public profile current."
+        description="Track your verification, browse matched requests, send quotations and keep your public profile current."
         actions={status ? <StatusBadge status={status} /> : undefined}
       />
 
@@ -168,9 +172,10 @@ function VendorDashboard() {
             />
           ) : (
             <>
-              <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-                Quotation submission is part of Stage 5 and is not enabled in this build. You can
-                still review every request you have been invited to.
+              <div className="mb-3 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-xs text-teal-800">
+                <strong className="font-semibold">Apply with a quotation.</strong> Submit your price
+                and inclusions; the society is notified instantly and can review every application.
+                You can revise your quote until the request closes.
               </div>
 
               {requestBoard.loading && <LoadingBlock label="Loading matched requests…" />}
@@ -185,34 +190,70 @@ function VendorDashboard() {
 
               <div className="space-y-3">
                 {items.map((request) => (
-                  <Card key={request.id} className="p-5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={request.status} />
-                      <Badge tone={request.hasQuoted ? 'violet' : 'sky'}>
-                        {request.hasQuoted ? 'Quoted' : humanize(request.distribution.status)}
-                      </Badge>
-                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                        {request.reference}
-                      </span>
-                    </div>
+                  <div key={request.id} className="space-y-3">
+                    <Card className="p-5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge status={request.status} />
+                        <Badge tone={request.hasQuoted ? 'violet' : 'sky'}>
+                          {request.hasQuoted ? 'Quoted' : humanize(request.distribution.status)}
+                        </Badge>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                          {request.reference}
+                        </span>
+                      </div>
 
-                    <h3 className="mt-2 text-base font-semibold text-slate-900">{request.title}</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {request.society.name} · {request.category.name}
-                      {request.event?.eventDate ? ` · ${formatDate(request.event.eventDate)}` : ''}
-                    </p>
-
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {formatBudget(request.budgetMin, request.budgetMax)}
+                      <h3 className="mt-2 text-base font-semibold text-slate-900">
+                        {request.title}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {request.society.name} · {request.category.name}
+                        {request.event?.eventDate
+                          ? ` · ${formatDate(request.event.eventDate)}`
+                          : ''}
                       </p>
-                      {request.responseDeadline && (
-                        <p className="text-xs text-slate-500">
-                          Respond by {formatDateTime(request.responseDeadline)}
+
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {formatBudget(request.budgetMin, request.budgetMax)}
                         </p>
-                      )}
-                    </div>
-                  </Card>
+                        <div className="flex flex-wrap items-center gap-3">
+                          {request.responseDeadline && (
+                            <p className="text-xs text-slate-500">
+                              Respond by {formatDateTime(request.responseDeadline)}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            className={buttonStyles(
+                              request.hasQuoted ? 'secondary' : 'primary',
+                              'sm',
+                            )}
+                            onClick={() =>
+                              setActiveRequestId((current) =>
+                                current === request.id ? null : request.id,
+                              )
+                            }
+                          >
+                            {activeRequestId === request.id
+                              ? 'Close form'
+                              : request.hasQuoted
+                                ? 'Edit quotation'
+                                : 'Apply with a quote'}
+                          </button>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {activeRequestId === request.id && (
+                      <QuotationForm
+                        requestId={request.id}
+                        requestTitle={request.title}
+                        hasQuoted={request.hasQuoted}
+                        onClose={() => setActiveRequestId(null)}
+                        onSaved={() => requestBoard.reload()}
+                      />
+                    )}
+                  </div>
                 ))}
               </div>
             </>

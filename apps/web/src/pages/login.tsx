@@ -2,14 +2,9 @@ import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.js';
+import { dashboardPath } from '../lib/roles.js';
 import { Alert, buttonStyles, Field, inputClass } from '../components/ui.js';
 import { Logo } from '../app/shell.js';
-
-export function dashboardPath(role: string | undefined): string {
-  if (role === 'vendor') return '/vendor';
-  if (role === 'admin') return '/admin';
-  return '/society';
-}
 
 const demoAccounts = [
   { label: 'Society', email: 'society@eventbridge.test', password: 'Society123!' },

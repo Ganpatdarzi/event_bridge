@@ -6,7 +6,7 @@ import { api, type Category } from '../lib/api.js';
 import { useApiQuery } from '../lib/use-api.js';
 import { Alert, buttonStyles, Field, inputClass } from '../components/ui.js';
 import { Logo } from '../app/shell.js';
-import { dashboardPath } from './login.js';
+import { dashboardPath } from '../lib/roles.js';
 
 type Role = 'society' | 'vendor';
 

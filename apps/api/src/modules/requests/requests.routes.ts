@@ -3,11 +3,17 @@ import {
   cancelRequestSchema,
   createRequestSchema,
   updateRequestSchema,
+  upsertQuotationSchema,
   uuidSchema,
 } from '@event-bridge/shared';
 import { z } from 'zod';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validateBody, validateParams } from '../../middleware/validate.js';
+import {
+  getMyQuotation,
+  listQuotations,
+  submitQuotation,
+} from '../quotations/quotations.controller.js';
 import {
   cancelRequest,
   closeRequest,
@@ -48,6 +54,25 @@ requestsRouter.post(
   authorize('society', 'admin'),
   validateParams(idParams),
   closeRequest,
+);
+requestsRouter.get(
+  '/:id/quotations/mine',
+  authorize('vendor'),
+  validateParams(idParams),
+  getMyQuotation,
+);
+requestsRouter.post(
+  '/:id/quotations',
+  authorize('vendor'),
+  validateParams(idParams),
+  validateBody(upsertQuotationSchema),
+  submitQuotation,
+);
+requestsRouter.get(
+  '/:id/quotations',
+  authorize('society', 'admin'),
+  validateParams(idParams),
+  listQuotations,
 );
 requestsRouter.patch(
   '/:id',

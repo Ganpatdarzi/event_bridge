@@ -1,7 +1,9 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.js';
 import { initials } from '../lib/format.js';
+import { dashboardPath } from '../lib/roles.js';
 import { Badge, buttonStyles, cx } from '../components/ui.js';
+import { NotificationBell } from '../components/notification-bell.js';
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -24,12 +26,6 @@ export function Logo({ className }: { className?: string }) {
       <circle cx="26" cy="26" r="2.2" fill="#ffffff" />
     </svg>
   );
-}
-
-function dashboardPath(role: string | undefined): string {
-  if (role === 'vendor') return '/vendor';
-  if (role === 'admin') return '/admin';
-  return '/society';
 }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -73,6 +69,7 @@ export function AppShell() {
               <div className="h-9 w-24 animate-pulse rounded-full bg-slate-100" />
             ) : user ? (
               <>
+                <NotificationBell />
                 <Link
                   to={dashboardPath(user.role)}
                   className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1.5 hover:bg-slate-50 sm:flex"

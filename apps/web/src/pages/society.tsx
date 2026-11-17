@@ -17,6 +17,7 @@ import {
   StatusBadge,
 } from '../components/ui.js';
 import { AuthGate } from '../components/auth-gate.js';
+import { RequestApplications } from '../components/request-applications.js';
 
 export function SocietyPage() {
   return (
@@ -31,6 +32,7 @@ function SocietyDashboard() {
   const requests = useApiQuery(() => api<Paginated<RequestListItem>>('/requests?pageSize=50'), []);
   const categories = useApiQuery(() => api<Category[]>('/categories', { auth: false }), []);
   const [showForm, setShowForm] = useState(false);
+  const [openRequestId, setOpenRequestId] = useState<string | null>(null);
 
   const items = requests.data?.items ?? [];
   const active = items.filter((request) =>
@@ -87,7 +89,7 @@ function SocietyDashboard() {
       <section className="mt-10">
         <SectionHeading
           title="Your requests"
-          description="Each request is distributed to matching verified vendors."
+          description="Each request is distributed to matching verified vendors. Expand a request to review the applications it received."
           actions={
             <Link to="/vendors" className={buttonStyles('ghost', 'sm')}>
               Browse vendors
@@ -162,6 +164,29 @@ function SocietyDashboard() {
                   )}
                 </div>
               </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                <p className="text-xs text-slate-500">
+                  {request.quotationCount === 0
+                    ? 'No applications yet'
+                    : `${request.quotationCount} vendor ${
+                        request.quotationCount === 1 ? 'application' : 'applications'
+                      } received`}
+                </p>
+                {request.quotationCount > 0 && (
+                  <button
+                    type="button"
+                    className={buttonStyles('secondary', 'sm')}
+                    onClick={() =>
+                      setOpenRequestId((current) => (current === request.id ? null : request.id))
+                    }
+                  >
+                    {openRequestId === request.id ? 'Hide applications' : 'Review applications'}
+                  </button>
+                )}
+              </div>
+
+              {openRequestId === request.id && <RequestApplications requestId={request.id} />}
             </Card>
           ))}
         </div>

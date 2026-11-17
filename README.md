@@ -18,21 +18,21 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 > vendor request board.
 >
 > **Quality gates are green.** `npm run typecheck`, `npm run lint`, `npm run build` and
-> `npm test` all pass; the suite runs **26/26 tests**, including the real migrations and the
-> auth flow against PostgreSQL-in-WASM.
+> `npm test` all pass; the suite runs **36/36 tests**, including the real migrations and the
+> auth, quotation and notification flows against PostgreSQL-in-WASM.
 >
 > **Frontend.** A working React + TypeScript frontend runs against the live API: a marketing
 > landing page, a searchable vendor directory, login and registration for both societies and
-> vendors, a society dashboard that publishes and tracks requests, a vendor dashboard showing
-> verification and matched requests, and an admin console with platform stats, vendor
-> approval/rejection and category oversight. Routing uses a single `BrowserRouter`, sessions are
-> restored from the httpOnly refresh cookie, and the UI is built with Tailwind.
+> vendors, a society dashboard that publishes requests and reviews vendor applications, a vendor
+> dashboard showing verification, matched requests and an inline quotation form, an admin console
+> with platform stats, vendor approval/rejection and category oversight, and a notification bell
+> with unread counts. Routing uses a single `BrowserRouter`, sessions are restored from the
+> httpOnly refresh cookie, and the UI is built with Tailwind.
 >
-> **Not built yet.** Stage 5 — quotation submission, comparison and selection — so the vendor
-> request board is read-only and no quotation endpoints exist. Reviews, portfolio uploads,
-> notifications, payments and analytics are also still out of scope. The
+> **Not built yet.** Quotation selection/preference, withdrawal, a dedicated side-by-side
+> comparison view, reviews, portfolio uploads, payments and analytics. The
 > [API reference](#8-api-reference) and [build order](#21-build-order) describe the complete
-> target specification; treat them as the plan, not as a list of shipped endpoints.
+> target specification; shipped endpoints and partially built stages are called out.
 
 ---
 
@@ -127,12 +127,12 @@ These are early signals from a small convenience sample — not proof of product
 - [x] Administrator-managed service categories
 - [x] Event and service-request creation (date, location, budget, quantity, description)
 - [x] Category-based vendor matching and request distribution
-- [ ] Structured quotation submission (price, scope, inclusions, exclusions, validity)
-- [ ] Society quotation listing and side-by-side comparison
-- [ ] Preferred/selected quotation recording with audit trail
-- [x] Request status tracking (quotation status tracking pending Stage 5)
-- [ ] In-app notifications
-- [x] Dashboards for society, vendor and administrator (quotation UI pending Stage 5)
+- [x] Structured quotation submission (price, scope, inclusions, exclusions, validity), editable until the request closes
+- [x] Society quotation listing and per-request application review
+- [ ] Side-by-side comparison view and preferred/selected quotation recording with audit trail
+- [x] Request status tracking (`open` → `partially_quoted` on the first quotation; `quoted`/`selected` still planned)
+- [x] In-app notifications with unread counts, a header bell and mark-as-read controls
+- [x] Dashboards for society, vendor and administrator, including the quotation and application flows
 
 ### P1 (important, after core flow works)
 
@@ -386,6 +386,9 @@ Base URL: `/api/v1` · Auth: `Authorization: Bearer <accessToken>` · Errors: `{
 
 Paginated endpoints return `{ "data": { "items": [...], "pagination": { "page", "pageSize", "total", "totalPages" } } }`. Every `/admin/*` route requires an admin token and writes administrative decisions to `audit_logs`.
 
+> Rows marked **(planned)** are part of the target specification but are not shipped yet. The
+> quotation and notification endpoints below reflect the current implementation.
+
 ### Auth
 
 | Method | Endpoint                | Access        | Description                         |
@@ -395,8 +398,8 @@ Paginated endpoints return `{ "data": { "items": [...], "pagination": { "page", 
 | POST   | `/auth/refresh`         | Cookie        | Rotate refresh token                |
 | POST   | `/auth/logout`          | Authenticated | Revoke refresh token                |
 | GET    | `/auth/me`              | Authenticated | Current user + profile summary      |
-| POST   | `/auth/forgot-password` | Public        | Send reset link (rate-limited)      |
-| POST   | `/auth/reset-password`  | Public        | Consume single-use token            |
+| POST   | `/auth/forgot-password` | Public        | Send reset link (planned)           |
+| POST   | `/auth/reset-password`  | Public        | Consume single-use token (planned)  |
 
 ### Profiles
 
@@ -408,7 +411,7 @@ Paginated endpoints return `{ "data": { "items": [...], "pagination": { "page", 
 | GET    | `/vendors/:id`          | Public  | Public vendor profile                    |
 | GET    | `/vendors/me`           | Vendor  | Own vendor profile                       |
 | PATCH  | `/vendors/me`           | Vendor  | Update own business profile              |
-| POST   | `/vendors/me/portfolio` | Vendor  | Upload portfolio image (P1)              |
+| POST   | `/vendors/me/portfolio` | Vendor  | Upload portfolio image (planned, P1)     |
 
 ### Categories (admin-managed)
 
@@ -422,31 +425,32 @@ Paginated endpoints return `{ "data": { "items": [...], "pagination": { "page", 
 
 ### Requests
 
-| Method | Endpoint                   | Access                               | Description                              |
-| ------ | -------------------------- | ------------------------------------ | ---------------------------------------- |
-| POST   | `/requests`                | Society                              | Create request (draft or submit)         |
-| GET    | `/requests`                | Society, admin                       | List requests, filter by status/category |
-| GET    | `/requests/:id`            | Society owner, invited vendor, admin | Request detail (field-level privacy)     |
-| PATCH  | `/requests/:id`            | Society owner                        | Edit while editable                      |
-| POST   | `/requests/:id/submit`     | Society owner                        | Validate and distribute                  |
-| POST   | `/requests/:id/cancel`     | Society owner, admin                 | Cancel with reason                       |
-| POST   | `/requests/:id/close`      | Society owner, admin                 | Close an active or completed request     |
-| GET    | `/requests/:id/quotations` | Society owner, admin                 | All quotations for comparison            |
-| GET    | `/requests/:id/vendors`    | Society owner, admin                 | Distribution record                      |
-| GET    | `/vendor/requests`         | Vendor                               | Eligible open requests                   |
+| Method | Endpoint                | Access                               | Description                              |
+| ------ | ----------------------- | ------------------------------------ | ---------------------------------------- |
+| POST   | `/requests`             | Society                              | Create request (draft or submit)         |
+| GET    | `/requests`             | Society, admin                       | List requests, filter by status/category |
+| GET    | `/requests/:id`         | Society owner, invited vendor, admin | Request detail (field-level privacy)     |
+| PATCH  | `/requests/:id`         | Society owner                        | Edit while editable                      |
+| POST   | `/requests/:id/submit`  | Society owner                        | Validate and distribute                  |
+| POST   | `/requests/:id/cancel`  | Society owner, admin                 | Cancel with reason                       |
+| POST   | `/requests/:id/close`   | Society owner, admin                 | Close an active or completed request     |
+| GET    | `/requests/:id/vendors` | Society owner, admin                 | Distribution record                      |
+| GET    | `/vendor/requests`      | Vendor                               | Eligible open requests                   |
 
 ### Quotations
 
-| Method | Endpoint                   | Access                        | Description                   |
-| ------ | -------------------------- | ----------------------------- | ----------------------------- |
-| POST   | `/requests/:id/quotations` | Eligible vendor               | Submit quotation              |
-| GET    | `/quotations`              | Vendor                        | Own quotations                |
-| GET    | `/quotations/:id`          | Owner / request owner / admin | Quotation detail              |
-| PATCH  | `/quotations/:id`          | Owning vendor                 | Edit before selection/closure |
-| POST   | `/quotations/:id/withdraw` | Owning vendor                 | Withdraw offer                |
-| POST   | `/quotations/:id/prefer`   | Society owner                 | Mark preferred                |
-| POST   | `/quotations/:id/select`   | Society owner                 | Record selection              |
-| GET    | `/requests/:id/compare`    | Society owner                 | Normalised comparison payload |
+Implemented:
+
+| Method | Endpoint                        | Access                   | Description                            |
+| ------ | ------------------------------- | ------------------------ | -------------------------------------- |
+| POST   | `/requests/:id/quotations`      | Invited, verified vendor | Create or update own quotation         |
+| GET    | `/requests/:id/quotations/mine` | Vendor                   | Own quotation for a request, or `null` |
+| GET    | `/requests/:id/quotations`      | Society owner, admin     | Paginated quotations for review        |
+
+Planned, not shipped yet: `GET /quotations`, `GET /quotations/:id`,
+`PATCH /quotations/:id`, `POST /quotations/:id/withdraw`,
+`POST /quotations/:id/prefer`, `POST /quotations/:id/select` and
+`GET /requests/:id/compare`.
 
 ### Reviews (P1)
 
@@ -475,11 +479,11 @@ Paginated endpoints return `{ "data": { "items": [...], "pagination": { "page", 
 
 ### Notifications
 
-| Method | Endpoint                  | Access        | Description       |
-| ------ | ------------------------- | ------------- | ----------------- |
-| GET    | `/notifications`          | Authenticated | Own notifications |
-| POST   | `/notifications/read-all` | Authenticated | Mark all read     |
-| PATCH  | `/notifications/:id`      | Authenticated | Mark one read     |
+| Method | Endpoint                  | Access        | Description                      |
+| ------ | ------------------------- | ------------- | -------------------------------- |
+| GET    | `/notifications`          | Authenticated | Own notifications + unread count |
+| POST   | `/notifications/read-all` | Authenticated | Mark all notifications read      |
+| POST   | `/notifications/:id/read` | Authenticated | Mark one notification read       |
 
 ### Error codes
 
@@ -500,20 +504,20 @@ Paginated endpoints return `{ "data": { "items": [...], "pagination": { "page", 
 
 ## 9. Roles and Permissions
 
-| Function                        | Society | Vendor |          Admin          |
-| ------------------------------- | :-----: | :----: | :---------------------: |
-| Manage own profile              |   ✅    |   ✅   |      ✅ (support)       |
-| Create service request          |   ✅    |   —    |            —            |
-| View own society requests       |   ✅    |   —    |     ✅ (oversight)      |
-| View eligible vendor requests   |    —    |   ✅   |           ✅            |
-| Submit quotation                |    —    |   ✅   |            —            |
-| View quotations for own request |   ✅    |   —    |           ✅            |
-| View competitor quotations      |    —    |   —    |     ⚠️ support only     |
-| Select quotation                |   ✅    |   —    | ⚠️ documented exception |
-| Approve/reject vendor           |    —    |   —    |           ✅            |
-| Manage categories               |    —    |   —    |           ✅            |
-| Suspend account                 |    —    |   —    |           ✅            |
-| View audit log                  |    —    |   —    |           ✅            |
+| Function                        | Society | Vendor |      Admin      |
+| ------------------------------- | :-----: | :----: | :-------------: |
+| Manage own profile              |   ✅    |   ✅   |  ✅ (support)   |
+| Create service request          |   ✅    |   —    |        —        |
+| View own society requests       |   ✅    |   —    | ✅ (oversight)  |
+| View eligible vendor requests   |    —    |   ✅   |       ✅        |
+| Submit quotation                |    —    |   ✅   |        —        |
+| View quotations for own request |   ✅    |   —    |       ✅        |
+| View competitor quotations      |    —    |   —    | ⚠️ support only |
+| Select quotation (planned)      |    —    |   —    |        —        |
+| Approve/reject vendor           |    —    |   —    |       ✅        |
+| Manage categories               |    —    |   —    |       ✅        |
+| Suspend account                 |    —    |   —    |       ✅        |
+| View audit log                  |    —    |   —    |       ✅        |
 
 University administration has **no account in the MVP**. Approval requirements are communicated in the UI and optionally recorded in `approval_records`.
 
@@ -522,7 +526,9 @@ University administration has **no account in the MVP**. Approval requirements a
 1. Every protected route passes `authenticate` → `authorize(role)` → resource-level ownership check.
 2. Ownership is resolved from the database, **never** from a client-supplied id alone.
 3. Admin actions write an `audit_logs` row in the same transaction.
-4. Vendor eligibility = account active **and** `verification_status = 'verified'` **and** category match **and** request `status IN ('open','partially_quoted')`.
+4. Vendor eligibility = active account **and** `verification_status = 'verified'` **and** an
+   invitation in `request_vendors` **and** request `status IN ('open','partially_quoted')`
+   **and** the response deadline has not passed.
 
 ---
 
@@ -575,6 +581,9 @@ verified ──▶ deactivated
 - `verified` is never shown unless an admin recorded the decision (BR-004).
 - Selection never implies university approval (BR-008); the UI must say so.
 
+> Selection, preference, withdrawal and expiry handling are still planned. The shipped flow
+> stops at submission/editing, society review and notifications.
+
 ---
 
 ## 11. Requirement Coverage
@@ -590,7 +599,7 @@ verified ──▶ deactivated
 | Quotations              | FR-053 – FR-063   | Submit quotation, My quotations             |
 | Comparison & selection  | FR-064 – FR-072   | Compare view, Select dialog                 |
 | Reviews                 | FR-073 – FR-078   | Review form, Vendor reviews                 |
-| Notifications           | FR-079 – FR-084   | Notification drawer                         |
+| Notifications           | FR-079 – FR-084   | Notification bell                           |
 | Search & history        | FR-085 – FR-088   | Filters, Vendor directory                   |
 | Dashboards              | FR-089 – FR-092   | Society / Vendor / Admin dashboards         |
 | Errors & audit          | FR-093 – FR-096   | Global error handling, Audit log            |
@@ -690,11 +699,13 @@ with one of the seeded accounts above to see the matching view.
 | `/vendors`  | Public   | Verified vendor directory with keyword, city and category filters                |
 | `/login`    | Public   | Sign in; the demo-account buttons fill in seeded credentials                     |
 | `/register` | Public   | Create a society account or apply as a vendor (with a category picker)           |
-| `/society`  | Society  | Request stats, request list, and a form to save a draft or publish a new request |
-| `/vendor`   | Vendor   | Verification status, public profile preview, and matched request board           |
+| `/society`  | Society  | Request stats, request list, new-request form and expandable vendor applications |
+| `/vendor`   | Vendor   | Verification status, public profile preview, matched requests and quotation form |
 | `/admin`    | Admin    | Platform stats, vendor approval/rejection queue and category oversight           |
 
-> The vendor request board is read-only until Stage 5 (quotations) is implemented.
+> Signed-in users also get a notification bell with unread counts and mark-as-read controls.
+> Society request cards expand to show each vendor's quotation; vendor cards open an inline form
+> to submit or revise a quotation.
 
 ---
 
@@ -965,6 +976,10 @@ Build in this sequence. Steps are numbered **1 → 65**; complete each one befor
 | 38  | Prefer + select in a transaction (supersede other offers with `not_selected`)         | Most consequential write in the system   |
 | 39  | Notification + audit on every quotation event                                         | Trust and accountability                 |
 
+**Shipped from Stage 5:** quotation creation/update, own-quotation lookup, society quotation
+listing, `open → partially_quoted`, and notification + audit rows on submit/update. Tasks 35
+(quotation detail/withdraw), 37 (compare payload) and 38 (prefer/select) are still planned.
+
 **Milestone 1 — the backend MVP is complete here.** Every FR-001–FR-096 path now exists via the API.
 
 ### Stage 6 — Frontend foundation
@@ -1026,4 +1041,4 @@ Build in this sequence. Steps are numbered **1 → 65**; complete each one befor
 
 **License:** Academic project — not licensed for commercial use without the team's permission.
 
-**Status:** stages 0–4 implemented and verified (typecheck, lint, build, 26/26 tests). Stage 5 onward per the [build order](#21-build-order).
+**Status:** stages 0–4 implemented, plus the quotation submission/review and notification slice of Stage 5. Verified with typecheck, lint, build and 36/36 tests. Selection, preference and comparison remain planned — see the [build order](#21-build-order).
