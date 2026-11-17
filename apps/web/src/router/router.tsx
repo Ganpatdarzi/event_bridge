@@ -1,65 +1,27 @@
-import { Link, Route, Routes } from 'react-router-dom';
-import { App } from '../App.js';
-
-interface RolePageProps {
-  title: string;
-  description: string;
-}
-
-function RolePage({ title, description }: RolePageProps) {
-  return (
-    <main className="shell">
-      <section className="card">
-        <p className="eyebrow">Event Bridge</p>
-        <h1>{title}</h1>
-        <p className="lede">{description}</p>
-        <p>
-          <Link className="nav-btn" to="/">
-            ← Back to home
-          </Link>
-        </p>
-      </section>
-    </main>
-  );
-}
+import { Route, Routes } from 'react-router-dom';
+import { AppShell } from '../app/shell.js';
+import { LandingPage } from '../pages/landing.js';
+import { VendorsPage } from '../pages/vendors.js';
+import { LoginPage } from '../pages/login.js';
+import { RegisterPage } from '../pages/register.js';
+import { SocietyPage } from '../pages/society.js';
+import { VendorPage } from '../pages/vendor.js';
+import { AdminPage } from '../pages/admin.js';
+import { NotFoundPage } from '../pages/not-found.js';
 
 export function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<App />} />
-      <Route
-        path="/society"
-        element={
-          <RolePage
-            title="Society dashboard"
-            description="Create service requests, compare vendor quotations and record a selection."
-          />
-        }
-      />
-      <Route
-        path="/vendor"
-        element={
-          <RolePage
-            title="Vendor dashboard"
-            description="Browse eligible requests, submit structured quotations and manage your portfolio."
-          />
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <RolePage
-            title="Admin dashboard"
-            description="Review vendor applications, manage categories and administer accounts."
-          />
-        }
-      />
-      <Route
-        path="*"
-        element={
-          <RolePage title="Page not found" description="The page you requested does not exist." />
-        }
-      />
+      <Route element={<AppShell />}>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/vendors" element={<VendorsPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/society" element={<SocietyPage />} />
+        <Route path="/vendor" element={<VendorPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
     </Routes>
   );
 }

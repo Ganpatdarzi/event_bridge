@@ -21,14 +21,17 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 > `npm test` all pass; the suite runs **26/26 tests**, including the real migrations and the
 > auth flow against PostgreSQL-in-WASM.
 >
-> **Frontend shell.** The Vite + React + Tailwind frontend is wired with a single
-> `BrowserRouter`, shared UI components and the public landing page. The white-screen regression
-> (caused by rendering `<Routes>` outside a router context) is fixed, and the PostCSS/Tailwind
-> pipeline is corrected. Society, vendor and admin dashboards are currently landing placeholders.
+> **Frontend.** A working React + TypeScript frontend runs against the live API: a marketing
+> landing page, a searchable vendor directory, login and registration for both societies and
+> vendors, a society dashboard that publishes and tracks requests, a vendor dashboard showing
+> verification and matched requests, and an admin console with platform stats, vendor
+> approval/rejection and category oversight. Routing uses a single `BrowserRouter`, sessions are
+> restored from the httpOnly refresh cookie, and the UI is built with Tailwind.
 >
-> **Not built yet.** Stage 5 (quotation submission, comparison and selection) and everything
-> after it — reviews, portfolio uploads, notifications, analytics and the full role dashboards.
-> The [API reference](#8-api-reference) and [build order](#21-build-order) describe the complete
+> **Not built yet.** Stage 5 — quotation submission, comparison and selection — so the vendor
+> request board is read-only and no quotation endpoints exist. Reviews, portfolio uploads,
+> notifications, payments and analytics are also still out of scope. The
+> [API reference](#8-api-reference) and [build order](#21-build-order) describe the complete
 > target specification; treat them as the plan, not as a list of shipped endpoints.
 
 ---
@@ -129,15 +132,15 @@ These are early signals from a small convenience sample — not proof of product
 - [ ] Preferred/selected quotation recording with audit trail
 - [x] Request status tracking (quotation status tracking pending Stage 5)
 - [ ] In-app notifications
-- [ ] Dashboards for society, vendor and administrator
+- [x] Dashboards for society, vendor and administrator (quotation UI pending Stage 5)
 
 ### P1 (important, after core flow works)
 
 - [ ] Portfolio image uploads
-- [ ] Search and filtering
+- [x] Search and filtering (vendor directory)
 - [ ] Reviews and ratings after completed engagements
 - [ ] Audit log UI
-- [ ] Basic analytics for the administrator
+- [x] Basic analytics for the administrator (platform stats)
 - [ ] Multiple representatives per society
 
 ### Explicitly out of scope for the MVP
@@ -154,20 +157,20 @@ These are early signals from a small convenience sample — not proof of product
 
 ## 4. Tech Stack
 
-| Layer         | Choice                                                               | Why                                           |
-| ------------- | -------------------------------------------------------------------- | --------------------------------------------- |
-| Frontend      | **React 19** + **Vite**                                              | Fast dev server, modern component model       |
-| Routing       | **React Router v7**                                                  | Route-level layouts and role guards           |
-| Data fetching | **TanStack Query**                                                   | Cache, retries, optimistic updates            |
-| Forms         | **React Hook Form** + **Zod**                                        | Shared validation with the backend            |
-| Styling       | **Tailwind CSS**                                                     | Consistent, responsive UI without bespoke CSS |
-| Backend       | **Node.js 22 LTS** + **Express 5**                                   | Minimal, well-understood REST API             |
-| Database      | **Neon (PostgreSQL 16+)**                                            | Serverless Postgres, branching for dev/prod   |
-| DB driver     | **`pg` + Drizzle ORM**                                               | Typed queries, SQL-first migrations           |
-| Auth          | **JWT access token + refresh cookie**, **argon2id** password hashing | Stateless API with revocable sessions         |
-| Validation    | **Zod** (server and client)                                          | One schema, consistent errors                 |
-| Logging       | **pino**                                                             | Structured, JSON-friendly logs                |
-| Testing       | **Vitest** + **Supertest** + **React Testing Library**               | Unit, API and component tests                 |
+| Layer         | Choice                                                               | Why                                                         |
+| ------------- | -------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Frontend      | **React 19** + **Vite**                                              | Fast dev server, modern component model                     |
+| Routing       | **React Router v7**                                                  | Route-level layouts and role guards                         |
+| Data fetching | **Typed `fetch` client**                                             | Small surface; auth refresh and errors handled in one place |
+| Forms         | **Controlled React forms** + **Zod**                                 | Shared validation rules live in `packages/shared`           |
+| Styling       | **Tailwind CSS**                                                     | Consistent, responsive UI without bespoke CSS               |
+| Backend       | **Node.js 22 LTS** + **Express 5**                                   | Minimal, well-understood REST API                           |
+| Database      | **Neon (PostgreSQL 16+)**                                            | Serverless Postgres, branching for dev/prod                 |
+| DB driver     | **`pg` + Drizzle ORM**                                               | Typed queries, SQL-first migrations                         |
+| Auth          | **JWT access token + refresh cookie**, **argon2id** password hashing | Stateless API with revocable sessions                       |
+| Validation    | **Zod** (server and client)                                          | One schema, consistent errors                               |
+| Logging       | **pino**                                                             | Structured, JSON-friendly logs                              |
+| Testing       | **Vitest** + **Supertest**                                           | API, schema and migration tests                             |
 
 **Minimum versions:** Node ≥ 22, npm ≥ 10, PostgreSQL ≥ 16 (Neon).
 
@@ -675,6 +678,23 @@ npm run db:migrate    # apply pending migrations (uses DIRECT_URL)
 npm run db:studio     # inspect data (Drizzle Studio)
 npm run db:reset      # drop + recreate + seed (dev only)
 ```
+
+### 7. Frontend map
+
+The web app is a single-page React application. Every dashboard is guarded by role, so sign in
+with one of the seeded accounts above to see the matching view.
+
+| Route       | Audience | What it does                                                                     |
+| ----------- | -------- | -------------------------------------------------------------------------------- |
+| `/`         | Public   | Landing page: value proposition, categories, how it works and featured vendors   |
+| `/vendors`  | Public   | Verified vendor directory with keyword, city and category filters                |
+| `/login`    | Public   | Sign in; the demo-account buttons fill in seeded credentials                     |
+| `/register` | Public   | Create a society account or apply as a vendor (with a category picker)           |
+| `/society`  | Society  | Request stats, request list, and a form to save a draft or publish a new request |
+| `/vendor`   | Vendor   | Verification status, public profile preview, and matched request board           |
+| `/admin`    | Admin    | Platform stats, vendor approval/rejection queue and category oversight           |
+
+> The vendor request board is read-only until Stage 5 (quotations) is implemented.
 
 ---
 
