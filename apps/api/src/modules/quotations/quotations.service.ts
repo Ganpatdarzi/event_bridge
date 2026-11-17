@@ -18,7 +18,7 @@ import {
 } from '../../db/schema/index.js';
 import { writeAuditTx } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
-import { buildPagination, type PageRequest } from '../../lib/pagination.js';
+import { buildPagination, type PageRequest, type PaginationMeta } from '../../lib/pagination.js';
 import { makeReference } from '../../lib/reference.js';
 
 export interface QuotationViewer {
@@ -576,4 +576,80 @@ export async function withdrawQuotation(
   });
 
   return getQuotationById(quotationId);
+}
+
+export interface MyQuotationListItem {
+  id: string;
+  reference: string;
+  totalPrice: number;
+  currency: string;
+  status: string;
+  submittedAt: Date;
+  updatedAt: Date;
+  request: {
+    id: string;
+    reference: string;
+    title: string;
+    status: string;
+  };
+}
+
+export async function listMyQuotations(
+  userId: string,
+  page: PageRequest,
+): Promise<{ items: MyQuotationListItem[]; pagination: PaginationMeta }> {
+  const [vendor] = await db
+    .select({ id: vendors.id })
+    .from(vendors)
+    .where(eq(vendors.userId, userId))
+    .limit(1);
+
+  if (!vendor) throw AppError.notFound('Vendor profile not found');
+
+  const where = eq(quotations.vendorId, vendor.id);
+
+  const [countRow] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(quotations)
+    .where(where);
+
+  const rows = await db
+    .select({
+      id: quotations.id,
+      reference: quotations.reference,
+      totalPrice: quotations.totalPrice,
+      currency: quotations.currency,
+      status: quotations.status,
+      submittedAt: quotations.submittedAt,
+      updatedAt: quotations.updatedAt,
+      requestId: serviceRequests.id,
+      requestReference: serviceRequests.reference,
+      requestTitle: serviceRequests.title,
+      requestStatus: serviceRequests.status,
+    })
+    .from(quotations)
+    .innerJoin(serviceRequests, eq(serviceRequests.id, quotations.requestId))
+    .where(where)
+    .orderBy(desc(quotations.updatedAt))
+    .limit(page.limit)
+    .offset(page.offset);
+
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      reference: row.reference,
+      totalPrice: Number(row.totalPrice),
+      currency: row.currency,
+      status: row.status,
+      submittedAt: row.submittedAt,
+      updatedAt: row.updatedAt,
+      request: {
+        id: row.requestId,
+        reference: row.requestReference,
+        title: row.requestTitle,
+        status: row.requestStatus,
+      },
+    })),
+    pagination: buildPagination(countRow?.total ?? 0, page),
+  };
 }

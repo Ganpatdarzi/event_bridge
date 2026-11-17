@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   api,
+  type Category,
+  type MyQuotationListItem,
   type MyVendor,
   type Paginated,
   type VendorRequestListItem,
@@ -8,13 +10,15 @@ import {
 } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { useApiQuery } from '../lib/use-api.js';
-import { formatBudget, formatDate, formatDateTime, humanize } from '../lib/format.js';
+import { formatBudget, formatDate, formatDateTime, formatMoney, humanize } from '../lib/format.js';
 import {
   Alert,
   Badge,
   buttonStyles,
   Card,
   EmptyState,
+  Field,
+  inputClass,
   LoadingBlock,
   PageHeader,
   SectionHeading,
@@ -45,14 +49,38 @@ function VendorDashboard() {
     text: string;
   } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [profileEditing, setProfileEditing] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileNotice, setProfileNotice] = useState<{
+    tone: 'success' | 'error';
+    text: string;
+  } | null>(null);
+  const [profileForm, setProfileForm] = useState({
+    businessName: '',
+    description: '',
+    city: '',
+    serviceArea: '',
+    contactPerson: '',
+    contactPhone: '',
+  });
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categorySaving, setCategorySaving] = useState(false);
 
   const profile = useApiQuery(() => api<MyVendor>('/vendors/me'), []);
+  const categories = useApiQuery(() => api<Category[]>('/categories', { auth: false }), []);
   const reviews = useApiQuery(
     () =>
       profile.data
         ? api<VendorReview[]>(`/vendors/${profile.data.id}/reviews`)
         : Promise.resolve([]),
     [profile.data?.id],
+  );
+  const myQuotations = useApiQuery(
+    () =>
+      api<{ items: MyQuotationListItem[]; pagination: { total: number } }>(
+        '/quotations/mine?pageSize=50',
+      ),
+    [],
   );
   const requestBoard = useApiQuery(async () => {
     if (profile.data?.verificationStatus !== 'verified') return emptyPage;
@@ -63,6 +91,61 @@ function VendorDashboard() {
   const invited = items.filter((request) => request.distribution.status === 'invited').length;
   const quoted = items.filter((request) => request.hasQuoted).length;
   const status = profile.data?.verificationStatus;
+
+  useEffect(() => {
+    if (!profile.data) return;
+    setProfileForm({
+      businessName: profile.data.businessName,
+      description: profile.data.description,
+      city: profile.data.city,
+      serviceArea: profile.data.serviceArea ?? '',
+      contactPerson: profile.data.contactPerson ?? '',
+      contactPhone: profile.data.contactPhone ?? '',
+    });
+    setSelectedCategories(profile.data.categories.map((c) => c.id));
+  }, [profile.data]);
+
+  async function saveProfile() {
+    setProfileSaving(true);
+    setProfileNotice(null);
+    try {
+      await api('/vendors/me', {
+        method: 'PATCH',
+        body: {
+          businessName: profileForm.businessName,
+          description: profileForm.description,
+          city: profileForm.city,
+          serviceArea: profileForm.serviceArea || undefined,
+          contactPerson: profileForm.contactPerson || undefined,
+          contactPhone: profileForm.contactPhone || undefined,
+        },
+      });
+      setProfileNotice({ tone: 'success', text: 'Profile updated.' });
+      profile.reload();
+    } catch (caught) {
+      setProfileNotice({
+        tone: 'error',
+        text: caught instanceof Error ? caught.message : 'Unable to update profile',
+      });
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function saveCategories() {
+    setCategorySaving(true);
+    try {
+      await api('/vendors/me', { method: 'PATCH', body: { categoryIds: selectedCategories } });
+      profile.reload();
+    } catch (caught) {
+      setProfileNotice({
+        tone: 'error',
+        text: caught instanceof Error ? caught.message : 'Unable to update categories',
+      });
+    } finally {
+      setCategorySaving(false);
+    }
+  }
 
   async function uploadPortfolio(file: File) {
     if (!file.type.startsWith('image/')) {
@@ -117,7 +200,7 @@ function VendorDashboard() {
       <PageHeader
         eyebrow="Vendor dashboard"
         title={`Hello, ${user?.name.split(' ')[0] ?? 'there'}`}
-        description="Track your verification, browse matched requests, send quotations and keep your public profile current."
+        description="Track your verification, manage your profile and categories, send quotations and review your performance."
         actions={status ? <StatusBadge status={status} /> : undefined}
       />
 
@@ -170,100 +253,257 @@ function VendorDashboard() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.5fr]">
         <section>
-          <SectionHeading title="Public profile" description="How societies see your business." />
+          <SectionHeading title="Business profile" description="How societies see your business." />
           {profile.loading && <LoadingBlock label="Loading profile…" />}
           {profile.error && <Alert tone="error">{profile.error}</Alert>}
           {profile.data && (
             <Card className="p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">{profile.data.businessName}</h3>
-                  <p className="mt-0.5 text-sm text-slate-500">
-                    {profile.data.city}
-                    {profile.data.serviceArea ? ` · ${profile.data.serviceArea}` : ''}
-                  </p>
-                </div>
-                <Badge tone="brand">
-                  {profile.data.rating.count > 0
-                    ? `★ ${profile.data.rating.average?.toFixed(1) ?? '—'}`
-                    : 'New'}
-                </Badge>
-              </div>
-
-              <p className="mt-4 text-sm text-slate-600">{profile.data.description}</p>
-
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                {profile.data.categories.length === 0 && (
-                  <span className="text-sm text-slate-500">No categories selected.</span>
-                )}
-                {profile.data.categories.map((category) => (
-                  <Badge key={category.id} tone="slate">
-                    {category.name}
-                  </Badge>
-                ))}
-              </div>
-
-              <div className="mt-5 border-t border-slate-100 pt-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Portfolio
-                </p>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {(profile.data.portfolio ?? []).map((image) => (
-                    <div key={image.id} className="group relative">
-                      <img
-                        src={image.dataUrl}
-                        alt={image.caption ?? 'Portfolio image'}
-                        className="h-24 w-full rounded-lg object-cover ring-1 ring-slate-200"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void removePortfolio(image.id)}
-                        className="absolute right-1 top-1 rounded-full bg-white/90 px-1.5 py-0.5 text-xs font-semibold text-rose-600 opacity-0 transition-opacity group-hover:opacity-100"
-                      >
-                        ×
-                      </button>
+              {!profileEditing ? (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">
+                        {profile.data.businessName}
+                      </h3>
+                      <p className="mt-0.5 text-sm text-slate-500">
+                        {profile.data.city}
+                        {profile.data.serviceArea ? ` · ${profile.data.serviceArea}` : ''}
+                      </p>
                     </div>
-                  ))}
-                </div>
-                <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={uploading}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void uploadPortfolio(file);
-                      event.target.value = '';
-                    }}
-                  />
-                  {uploading ? 'Uploading…' : 'Add image'}
-                </label>
-                {portfolioNotice && (
-                  <div className="mt-2">
-                    <Alert tone={portfolioNotice.tone}>{portfolioNotice.text}</Alert>
+                    <Badge tone="brand">
+                      {profile.data.rating.count > 0
+                        ? `★ ${profile.data.rating.average?.toFixed(1) ?? '—'}`
+                        : 'New'}
+                    </Badge>
                   </div>
-                )}
-              </div>
 
-              <dl className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-sm">
-                <div className="flex justify-between gap-4">
-                  <dt className="text-slate-500">Contact</dt>
-                  <dd className="font-medium text-slate-800">
-                    {profile.data.contactPerson ?? '—'}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-slate-500">Phone</dt>
-                  <dd className="font-medium text-slate-800">{profile.data.contactPhone ?? '—'}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-slate-500">Listed since</dt>
-                  <dd className="font-medium text-slate-800">
-                    {formatDate(profile.data.createdAt)}
-                  </dd>
-                </div>
-              </dl>
+                  <p className="mt-4 text-sm text-slate-600">{profile.data.description}</p>
+
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {profile.data.categories.length === 0 && (
+                      <span className="text-sm text-slate-500">No categories selected.</span>
+                    )}
+                    {profile.data.categories.map((category) => (
+                      <Badge key={category.id} tone="slate">
+                        {category.name}
+                      </Badge>
+                    ))}
+                  </div>
+
+                  <dl className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Contact</dt>
+                      <dd className="font-medium text-slate-800">
+                        {profile.data.contactPerson ?? '—'}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Phone</dt>
+                      <dd className="font-medium text-slate-800">
+                        {profile.data.contactPhone ?? '—'}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Listed since</dt>
+                      <dd className="font-medium text-slate-800">
+                        {formatDate(profile.data.createdAt)}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      className={buttonStyles('secondary', 'sm')}
+                      onClick={() => setProfileEditing(true)}
+                    >
+                      Edit profile
+                    </button>
+                  </div>
+
+                  <div className="mt-5 border-t border-slate-100 pt-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Portfolio
+                    </p>
+                    <div className="mt-2 grid grid-cols-3 gap-2">
+                      {(profile.data.portfolio ?? []).map((image) => (
+                        <div key={image.id} className="group relative">
+                          <img
+                            src={image.dataUrl}
+                            alt={image.caption ?? 'Portfolio image'}
+                            className="h-24 w-full rounded-lg object-cover ring-1 ring-slate-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void removePortfolio(image.id)}
+                            className="absolute right-1 top-1 rounded-full bg-white/90 px-1.5 py-0.5 text-xs font-semibold text-rose-600 opacity-0 transition-opacity group-hover:opacity-100"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploading}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadPortfolio(file);
+                          event.target.value = '';
+                        }}
+                      />
+                      {uploading ? 'Uploading…' : 'Add image'}
+                    </label>
+                    {portfolioNotice && (
+                      <div className="mt-2">
+                        <Alert tone={portfolioNotice.tone}>{portfolioNotice.text}</Alert>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveProfile();
+                  }}
+                >
+                  <Field label="Business name" htmlFor="vendor-business">
+                    <input
+                      id="vendor-business"
+                      className={inputClass}
+                      value={profileForm.businessName}
+                      onChange={(event) =>
+                        setProfileForm({ ...profileForm, businessName: event.target.value })
+                      }
+                      required
+                    />
+                  </Field>
+                  <Field label="Description" htmlFor="vendor-description">
+                    <textarea
+                      id="vendor-description"
+                      rows={3}
+                      className={inputClass}
+                      value={profileForm.description}
+                      onChange={(event) =>
+                        setProfileForm({ ...profileForm, description: event.target.value })
+                      }
+                      required
+                    />
+                  </Field>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="City" htmlFor="vendor-city">
+                      <input
+                        id="vendor-city"
+                        className={inputClass}
+                        value={profileForm.city}
+                        onChange={(event) =>
+                          setProfileForm({ ...profileForm, city: event.target.value })
+                        }
+                        required
+                      />
+                    </Field>
+                    <Field label="Service area" htmlFor="vendor-area">
+                      <input
+                        id="vendor-area"
+                        className={inputClass}
+                        value={profileForm.serviceArea}
+                        onChange={(event) =>
+                          setProfileForm({ ...profileForm, serviceArea: event.target.value })
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Contact person" htmlFor="vendor-contact">
+                      <input
+                        id="vendor-contact"
+                        className={inputClass}
+                        value={profileForm.contactPerson}
+                        onChange={(event) =>
+                          setProfileForm({ ...profileForm, contactPerson: event.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Contact phone" htmlFor="vendor-phone">
+                      <input
+                        id="vendor-phone"
+                        className={inputClass}
+                        value={profileForm.contactPhone}
+                        onChange={(event) =>
+                          setProfileForm({ ...profileForm, contactPhone: event.target.value })
+                        }
+                      />
+                    </Field>
+                  </div>
+                  {profileNotice && <Alert tone={profileNotice.tone}>{profileNotice.text}</Alert>}
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      className={buttonStyles('primary', 'sm')}
+                      disabled={profileSaving}
+                    >
+                      {profileSaving ? 'Saving…' : 'Save profile'}
+                    </button>
+                    <button
+                      type="button"
+                      className={buttonStyles('ghost', 'sm')}
+                      onClick={() => setProfileEditing(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+            </Card>
+          )}
+
+          {profile.data && (
+            <Card className="mt-4 p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Service categories
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(categories.data ?? []).map((category) => {
+                  const checked = selectedCategories.includes(category.id);
+                  return (
+                    <label
+                      key={category.id}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                        checked
+                          ? 'border-brand bg-teal-50 text-brand'
+                          : 'border-slate-300 bg-white text-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="hidden"
+                        checked={checked}
+                        onChange={() =>
+                          setSelectedCategories((current) =>
+                            checked
+                              ? current.filter((id) => id !== category.id)
+                              : [...current, category.id],
+                          )
+                        }
+                      />
+                      {category.name}
+                    </label>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                className={buttonStyles('secondary', 'sm')}
+                disabled={categorySaving}
+                onClick={() => void saveCategories()}
+              >
+                {categorySaving ? 'Saving…' : 'Save categories'}
+              </button>
             </Card>
           )}
         </section>
@@ -368,36 +608,91 @@ function VendorDashboard() {
             </>
           )}
         </section>
+      </div>
 
-        <section className="mt-8">
-          <SectionHeading
-            title="Your reviews"
-            description="Feedback from societies you have worked with."
-          />
-          {reviews.loading && <LoadingBlock label="Loading reviews…" />}
-          {reviews.error && <Alert tone="error">{reviews.error}</Alert>}
-          {!reviews.loading && !reviews.error && (reviews.data?.length ?? 0) === 0 && (
+      <section className="mt-10">
+        <SectionHeading title="My quotations" description="Quotations you have submitted." />
+        {myQuotations.loading && <LoadingBlock label="Loading quotations…" />}
+        {myQuotations.error && <Alert tone="error">{myQuotations.error}</Alert>}
+        {!myQuotations.loading &&
+          !myQuotations.error &&
+          (myQuotations.data?.items.length ?? 0) === 0 && (
             <EmptyState
-              title="No reviews yet"
-              description="Reviews appear here after a society completes an engagement."
+              title="No quotations yet"
+              description="Apply to a matched request to create your first quotation."
             />
           )}
-          <div className="mt-4 space-y-3">
-            {reviews.data?.map((review) => (
-              <Card key={review.id} className="p-4">
-                <p className="text-sm font-semibold text-amber-600">
-                  {'★'.repeat(review.rating)}
-                  <span className="ml-2 text-xs font-normal text-slate-500">
-                    {review.society.name}
-                  </span>
-                </p>
-                <p className="mt-1 text-sm text-slate-600">{review.comment ?? 'No comment.'}</p>
-                <p className="mt-1 text-xs text-slate-400">{formatDate(review.createdAt)}</p>
-              </Card>
-            ))}
-          </div>
-        </section>
-      </div>
+        <div className="mt-4 space-y-3">
+          {myQuotations.data?.items.map((quote) => (
+            <Card key={quote.id} className="p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{quote.request.title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {quote.request.reference} · {quote.reference} · {formatMoney(quote.totalPrice)}
+                  </p>
+                </div>
+                <Badge tone={quote.status === 'selected' ? 'emerald' : 'slate'}>
+                  {humanize(quote.status)}
+                </Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <SectionHeading
+          title="Your reviews"
+          description="Feedback from societies you have worked with."
+        />
+        {reviews.loading && <LoadingBlock label="Loading reviews…" />}
+        {reviews.error && <Alert tone="error">{reviews.error}</Alert>}
+        {!reviews.loading && !reviews.error && (reviews.data?.length ?? 0) === 0 && (
+          <EmptyState
+            title="No reviews yet"
+            description="Reviews appear here after a society completes an engagement."
+          />
+        )}
+        <div className="mt-4 space-y-3">
+          {reviews.data?.map((review) => (
+            <Card key={review.id} className="p-4">
+              <p className="text-sm font-semibold text-amber-600">
+                {'★'.repeat(review.rating)}
+                <span className="ml-2 text-xs font-normal text-slate-500">
+                  {review.society.name}
+                </span>
+              </p>
+              <p className="mt-1 text-sm text-slate-600">{review.comment ?? 'No comment.'}</p>
+              <p className="mt-1 text-xs text-slate-400">{formatDate(review.createdAt)}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <SectionHeading title="Settings" description="Account and notification preferences." />
+        <Card className="p-6">
+          <dl className="space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">Name</dt>
+              <dd className="font-medium text-slate-800">{user?.name}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">Email</dt>
+              <dd className="font-medium text-slate-800">{user?.email}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">Role</dt>
+              <dd className="font-medium text-slate-800">Vendor</dd>
+            </div>
+          </dl>
+          <p className="mt-4 text-xs text-slate-500">
+            Use the profile editor above to update your business details. Password changes are
+            handled through the login flow.
+          </p>
+        </Card>
+      </section>
     </div>
   );
 }

@@ -251,6 +251,16 @@ export interface VendorSummary {
   rating: VendorRating;
 }
 
+export interface MyQuotationListItem {
+  id: string;
+  reference: string;
+  totalPrice: number;
+  currency: string;
+  status: string;
+  submittedAt: string;
+  updatedAt: string;
+  request: { id: string; reference: string; title: string; status: string };
+}
 export interface MyVendor extends VendorSummary {
   contactPerson: string | null;
   contactPhone: string | null;
