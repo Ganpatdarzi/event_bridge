@@ -9,7 +9,7 @@
  *   2. Serve index.html for client-side routes (React Router deep links).
  *
  * Set API_ORIGIN in the Cloudflare Pages project (Settings > Variables and
- * Secrets), e.g. https://event-bridge-api.onrender.com
+ * Secrets), e.g. https://event-bridge-api.vercel.app
  */
 
 const API_PREFIX = '/api';

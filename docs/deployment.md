@@ -1,149 +1,120 @@
-# Deployment runbook — Event Bridge
+# Deployment (free plans only)
 
-Target stack:
+This setup uses only free tiers — no credit card required and no paid plans:
 
-| Layer     | Host                                                | Why                                                           |
-| --------- | --------------------------------------------------- | ------------------------------------------------------------- |
-| Web       | Cloudflare Pages                                    | Static SPA, global CDN, Git deploys                           |
-| API proxy | Cloudflare Pages Function (`functions/[[path]].js`) | Keeps `/api` same-origin so the httpOnly refresh cookie works |
-| API       | Render (`render.yaml`)                              | Runs the existing Express/Node 22 app without rewrites        |
-| Database  | Neon (already created)                              | Pooled URL at runtime, direct URL for migrations              |
+| Piece                       | Platform                                                          | Free allowance used                                                  |
+| --------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Web (React SPA)             | **Cloudflare Pages**                                              | Unlimited static bandwidth, 100k Function requests/day               |
+| `/api` proxy + SPA fallback | **Cloudflare Pages Function** (repo root `functions/[[path]].js`) | Included above                                                       |
+| API (Express)               | **Vercel Hobby**                                                  | 1M invocations/mo, 100 GB transfer, 2 GB / 1 vCPU, 300s max duration |
+| Database                    | **Neon Free**                                                     | 0.5 GB storage, 100 CU-hours/mo, no card                             |
 
-Why not put the API on Cloudflare Workers? It uses `argon2` (native addon), `pg` and Express 5; Workers cannot run native modules. Cloudflare Containers could run it, but needs the Workers Paid plan plus a Durable Object wrapper and cold-start handling — unnecessary for this MVP.
+> Render is intentionally **not** used — its automatic-migration blueprint required a paid plan. Migrations are run manually from your machine instead.
 
----
+## 1. Neon (database)
 
-## 1. Prerequisites
+1. Create a free project at <https://console.neon.tech>.
+2. Create the `event_bridge` database if it was not created by default.
+3. In the project dashboard, copy two connection strings:
+   - **Pooled connection** — used at runtime (`DATABASE_URL`).
+   - **Direct connection** — used only for migrations (`DIRECT_URL`).
+4. Keep these values private. Never commit them.
 
-- GitHub repo pushed to `main` (done).
-- Cloudflare account with Pages enabled.
-- Render account.
-- Neon database with two connection strings:
-  - **Pooled** → `DATABASE_URL` (used by the API at runtime).
-  - **Direct** → `DIRECT_URL` (used by migrations).
-- Fresh JWT secrets are generated automatically by Render, so you do not need to create them.
+## 2. Run migrations once (from your machine)
 
-> Do not run `npm run db:seed` against production. The deploy only runs migrations.
-
----
-
-## 2. Deploy the API on Render
-
-1. Render Dashboard → **New +** → **Blueprint** → connect `Ganpatdarzi/event_bridge`.
-2. Select branch `main`. Render finds `render.yaml` at the repo root.
-3. Fill the prompted values:
-   - `APP_ORIGIN` — leave blank for now; set it after the Pages deploy (step 4). You can use `http://localhost:5173` temporarily so the service can boot.
-   - `DATABASE_URL` — Neon **pooled** connection string (include `?sslmode=require`).
-   - `DIRECT_URL` — Neon **direct** connection string.
-4. Create the Blueprint. Render will:
-   - install with dev dependencies (`npm ci --include=dev`),
-   - build the shared package and API,
-   - run Drizzle migrations via `preDeployCommand`,
-   - start `node dist/server.js`,
-   - health-check `/health`.
-5. Copy the service URL, e.g. `https://event-bridge-api.onrender.com`.
-
-If the first deploy fails at the migration step, check `DIRECT_URL` and that the Neon branch allows connections from Render.
-
----
-
-## 3. Deploy the web app on Cloudflare Pages
-
-1. Cloudflare Dashboard → **Workers & Pages** → **Create** → **Pages** → **Connect to Git** → select the repo.
-2. Configure the build:
-
-   | Setting                | Value                                                                                |
-   | ---------------------- | ------------------------------------------------------------------------------------ |
-   | Production branch      | `main`                                                                               |
-   | Root directory         | _(leave blank — repo root)_                                                          |
-   | Build command          | `npm ci --include=dev && npm run build:shared && npm run build -w @event-bridge/web` |
-   | Build output directory | `apps/web/dist`                                                                      |
-   | Node version           | `22` ( Settings → Environment variables → `NODE_VERSION = 22` )                      |
-
-3. Add a runtime variable (Settings → **Variables and Secrets**):
-
-   | Name         | Value                                                                        |
-   | ------------ | ---------------------------------------------------------------------------- |
-   | `API_ORIGIN` | the Render API URL from step 2, e.g. `https://event-bridge-api.onrender.com` |
-
-   No trailing slash. This is a plain variable, not a secret.
-
-4. Deploy. The root-level `functions/[[path]].js` is picked up automatically because the root directory is the repo root.
-
-What that Function does:
-
-- `/api/*` → forwards method, path, query, body and headers to `API_ORIGIN`, and forwards `Set-Cookie` back. Responses are marked `no-store`.
-- everything else → serves the real static asset if present; otherwise serves `index.html` so React Router deep links like `/vendor/quotations` work.
-- `apps/web/public/_redirects` provides a second SPA fallback for non-Function requests.
-
----
-
-## 4. Point the API back at the web origin
-
-Once you know the Pages URL (e.g. `https://event-bridge.pages.dev`):
-
-1. Render → `event-bridge-api` → **Environment** → set `APP_ORIGIN` to that exact origin (no trailing slash).
-2. Redeploy the Render service.
-3. If you later add a custom domain, set `APP_ORIGIN` to the custom origin instead.
-
-`APP_ORIGIN` must match the browser origin exactly: it drives both CORS and the `SameSite=Lax` refresh cookie. Leave `COOKIE_DOMAIN` empty.
-
----
-
-## 5. Smoke test
-
-```bash
-API=https://event-bridge-api.onrender.com
-WEB=https://event-bridge.pages.dev
-
-curl -s $API/health
-curl -s $API/health/db
-curl -s $WEB/api/v1/categories | head -c 300
-curl -s -o /dev/null -w '%{http_code}\n' $WEB/vendor/quotations
-```
-
-Expected:
-
-- `/health` → `{"data":{"status":"ok",...}}`
-- `/health/db` → `{"data":{"status":"ok","database":"reachable"}}`
-- `$WEB/api/v1/categories` → same JSON as calling the API directly (proves the proxy works)
-- deep link → `200` with the SPA HTML
-
-Then in a browser: register/login, reload the page (refresh cookie should keep you signed in), and open DevTools → Application → Cookies to confirm the refresh cookie is set on the Pages domain with `Secure` + `HttpOnly`.
-
----
-
-## 6. Production checklist
-
-- [x] `NODE_ENV=production`, `COOKIE_SECURE=true`, `APP_ORIGIN` set correctly
-- [x] Secrets managed by the hosts (Render `generateValue`, Cloudflare variable for the non-secret API origin)
-- [x] Migrations applied automatically before the API starts
-- [x] CORS restricted to the deployed web origin
-- [x] HTTPS/HSTS from Cloudflare and Render
-- [ ] Confirm Neon point-in-time restore/backups
-- [ ] Wire error tracking (e.g. Sentry) if required
-- [x] Demo/seed accounts are not created by the deploy
-
----
-
-## 7. Troubleshooting
-
-| Symptom                                         | Likely cause                                     | Fix                                                                               |
-| ----------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- |
-| Web shows `API is unreachable` (502)            | `API_ORIGIN` missing/wrong                       | Set it in Pages → Variables and Secrets, then redeploy                            |
-| CORS error in console                           | `APP_ORIGIN` doesn't match the Pages URL exactly | Set exact origin on Render and redeploy                                           |
-| Login works but reload logs you out             | Refresh cookie blocked                           | Check `COOKIE_SECURE=true`, empty `COOKIE_DOMAIN`, and that `/api` is same-origin |
-| Deep link 404s                                  | Function or `_redirects` missing                 | Ensure `functions/[[path]].js` and `apps/web/public/_redirects` are in `main`     |
-| API build fails with missing `tsx`/`typescript` | dev dependencies skipped                         | Keep `npm ci --include=dev` in the build command                                  |
-| Migration fails                                 | `DIRECT_URL` wrong or Neon IP rules              | Fix the direct URL / allow Render egress                                          |
-
----
-
-## 8. Optional: local Pages Function testing
+Vercel deploys do **not** run migrations for you. From the repo root:
 
 ```powershell
-Copy-Item apps/web/.dev.vars.example apps/web/.dev.vars
-npx wrangler pages dev apps/web/dist --binding=API_ORIGIN=http://localhost:4000
+$env:DATABASE_URL="postgresql://<pooled-user>:<password>@<pooled-host>/event_bridge?sslmode=require"
+$env:DIRECT_URL="postgresql://<user>:<password>@<direct-host>/event_bridge?sslmode=require"
+npm ci --include=dev
+npm run db:migrate -w @event-bridge/api
 ```
 
-Run the API locally first (`npm run dev:api`). `.dev.vars` is gitignored.
+`DIRECT_URL` is required because migration DDL must not go through Neon's pooled connection. The runner falls back to `DATABASE_URL` if `DIRECT_URL` is unset, but using the direct URL avoids pooler errors.
+
+## 3. Deploy the API to Vercel (Hobby)
+
+1. Push this repo to GitHub (already done).
+2. Go to <https://vercel.com/new> and **Import** `Ganpatdarzi/event_bridge`.
+   - Use your **personal** account. Vercel Hobby cannot import repositories owned by organizations.
+3. Framework preset: **Other**. Vercel will detect the root `vercel.json`:
+   - Install: `npm ci --include=dev`
+   - Build: `npm run build:shared && npm run build -w @event-bridge/api`
+   - Rewrite: every path -> `/api/index` (the Express app in `api/index.js`).
+4. Add these **Environment Variables** (Production + Preview):
+
+   | Key                  | Value                                                             |
+   | -------------------- | ----------------------------------------------------------------- |
+   | `NODE_ENV`           | `production`                                                      |
+   | `DATABASE_URL`       | Neon **pooled** connection string                                 |
+   | `JWT_SECRET`         | Long random string (e.g. `openssl rand -hex 32`)                  |
+   | `JWT_REFRESH_SECRET` | A **different** long random string                                |
+   | `APP_ORIGIN`         | Your Cloudflare Pages URL (e.g. `https://event-bridge.pages.dev`) |
+   | `COOKIE_SECURE`      | `true`                                                            |
+
+   `PORT` is not needed — Vercel injects it. Do **not** set `DIRECT_URL` on Vercel; migrations are not run there.
+
+5. Deploy. Note the deployment URL, e.g. `https://event-bridge-api.vercel.app`.
+
+   > The API rejects short/placeholder JWT secrets in production, so generate real random values.
+
+### Test the Vercel API directly
+
+```powershell
+curl https://event-bridge-api.vercel.app/health
+```
+
+Expect a JSON health payload. If you get a 500, check the Vercel **Runtime Logs** — usually an env var is missing or the Neon pooled string is wrong.
+
+## 4. Deploy the web app to Cloudflare Pages
+
+1. Go to <https://dash.cloudflare.com> -> **Workers & Pages** -> **Create** -> **Pages** -> **Connect to Git**.
+2. Select `Ganpatdarzi/event_bridge`, branch `main`.
+3. Build settings:
+   - **Root directory**: leave blank (must be repo root so `functions/` is detected).
+   - **Build command**: `npm ci --include=dev && npm run build:shared && npm run build -w @event-bridge/web`
+   - **Build output directory**: `apps/web/dist`
+   - **Node version**: `22` (set as environment variable `NODE_VERSION=22`)
+4. Add an environment variable:
+   - `API_ORIGIN` = your Vercel URL from step 3, e.g. `https://event-bridge-api.vercel.app` (no trailing `/api`).
+5. Deploy. Cloudflare auto-detects the root `functions/[[path]].js` file, which:
+   - proxies `/api/*` to `$API_ORIGIN` (forwarding headers, body, and `Set-Cookie`),
+   - serves the SPA (`/`) for non-API paths that are not static assets,
+   - forces `Cache-Control: no-store` on proxied API responses.
+6. After the first deploy, copy the Pages URL (e.g. `https://event-bridge.pages.dev`) and go back to Vercel -> **Settings -> Environment Variables** -> set `APP_ORIGIN` to that exact URL -> **Redeploy** (or it will auto-redeploy on a Git push).
+
+## 5. Verify the full flow
+
+```powershell
+# API through the Cloudflare proxy
+curl https://event-bridge.pages.dev/api/v1/health
+
+# SPA fallback on refresh of a client route
+curl -I https://event-bridge.pages.dev/dashboard
+```
+
+Then open the Pages URL in a browser and sign up / log in. The refresh cookie is `httpOnly`, `Secure`, `SameSite=Lax`, and stays same-origin because the browser only talks to the Cloudflare Pages domain.
+
+## Local development (unchanged)
+
+```powershell
+cp .env.example .env
+# fill DATABASE_URL (local Neon pooled or local Postgres), DIRECT_URL, JWT secrets
+npm ci --include=dev
+npm run db:migrate -w @event-bridge/api
+npm run dev
+```
+
+`apps/web/vite.config.ts` proxies `/api` to `http://localhost:4000`, so the local SPA also uses relative `/api/v1` URLs.
+
+## Troubleshooting
+
+| Symptom                         | Likely fix                                                                                                     |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Browser shows CORS error        | `APP_ORIGIN` on Vercel does not exactly equal the Cloudflare Pages origin.                                     |
+| Login works but refresh fails   | Cloudflare Function is not forwarding `Set-Cookie`; confirm `API_ORIGIN` is the bare Vercel origin.            |
+| 500 on every API call           | Missing `DATABASE_URL` / JWT secrets on Vercel, or `createApp()` failed validation. Check Vercel Runtime Logs. |
+| 404 on `/api/v1/...` via Pages  | The root `functions/[[path]].js` was not deployed — ensure Cloudflare **Root directory is blank**.             |
+| Refresh of a client route 404s  | Static fallback missing; `_redirects` and the Function both handle this — confirm output dir `apps/web/dist`.  |
+| Migration fails on first deploy | Use `DIRECT_URL` (Neon direct connection), not the pooled string.                                              |

@@ -830,11 +830,13 @@ npm run test:e2e
 
 ## 17. Deployment
 
-| Component        | Suggested host            | Notes                                                              |
-| ---------------- | ------------------------- | ------------------------------------------------------------------ |
-| Web (static SPA) | Vercel / Netlify          | Build `apps/web`, rewrite all routes to `index.html`               |
-| API              | Render / Railway / Fly.io | Node 22, `npm run start`, health check `/health`                   |
-| Database         | Neon                      | Use the pooled URL for the API; run migrations with the direct URL |
+| Component        | Host                    | Notes                                                                            |
+| ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
+| Web (static SPA) | Cloudflare Pages (free) | Build `apps/web`; `functions/[[path]].js` proxies `/api` and serves SPA fallback |
+| API              | Vercel Hobby (free)     | Node 22 Express function in `api/index.js`, health check `/health`               |
+| Database         | Neon Free               | Use the pooled URL for the API; run migrations with the direct URL               |
+
+See [docs/deployment.md](docs/deployment.md) for the exact free-tier setup steps.
 
 **Production checklist**
 
