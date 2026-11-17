@@ -140,7 +140,7 @@ These are early signals from a small convenience sample — not proof of product
 
 ### P1 (important, after core flow works)
 
-- [ ] Portfolio image uploads
+- [x] Portfolio image uploads (base64, up to 8 images)
 - [x] Search and filtering (vendor directory)
 - [x] Reviews and ratings after completed engagements (admin moderation included)
 - [x] Audit log UI
