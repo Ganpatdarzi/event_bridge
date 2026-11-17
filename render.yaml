@@ -1,0 +1,52 @@
+# Render Blueprint for the Event Bridge API.
+# Database stays on Neon; only the Express API runs here.
+# See docs/deployment.md for the full deploy runbook.
+
+services:
+  - type: web
+    name: event-bridge-api
+    runtime: node
+    # 0.5c-512mb is the smallest paid plan and enables preDeployCommand.
+    plan: 0.5c-512mb
+    branch: main
+    buildCommand: npm ci --include=dev && npm run build:shared && npm run build -w @event-bridge/api
+    # Drizzle migrations are idempotent and run against DIRECT_URL.
+    preDeployCommand: npm run db:migrate -w @event-bridge/api
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      # Set this to the deployed Cloudflare Pages origin, no trailing slash.
+      - key: APP_ORIGIN
+        sync: false
+      # Neon pooled connection string (runtime).
+      - key: DATABASE_URL
+        sync: false
+      # Neon direct connection string (migrations).
+      - key: DIRECT_URL
+        sync: false
+      # Render generates strong, distinct secrets on first deploy.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: REFRESH_EXPIRES_IN
+        value: 7d
+      # Same-origin through the Pages proxy: no cookie domain needed.
+      - key: COOKIE_DOMAIN
+        value: ''
+      - key: COOKIE_SECURE
+        value: 'true'
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX
+        value: 300
+      - key: LOG_LEVEL
+        value: info
+      - key: NODE_VERSION
+        value: '22'
