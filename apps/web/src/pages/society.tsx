@@ -1,16 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, type Category, type Paginated, type RequestListItem } from '../lib/api.js';
+import {
+  api,
+  type Category,
+  type MySociety,
+  type Paginated,
+  type RequestListItem,
+} from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { useApiQuery } from '../lib/use-api.js';
-import { formatBudget, formatDate, formatDateTime } from '../lib/format.js';
+import { formatBudget, formatDate, formatDateTime, humanize } from '../lib/format.js';
 import {
   Alert,
+  Badge,
   buttonStyles,
   Card,
   EmptyState,
   Field,
   inputClass,
+  LoadingBlock,
   PageHeader,
   SectionHeading,
   Stat,
@@ -32,11 +40,69 @@ function SocietyDashboard() {
   const { user, profile } = useAuth();
   const requests = useApiQuery(() => api<Paginated<RequestListItem>>('/requests?pageSize=50'), []);
   const categories = useApiQuery(() => api<Category[]>('/categories', { auth: false }), []);
+  const societyProfile = useApiQuery(() => api<MySociety>('/societies/me'), []);
   const [showForm, setShowForm] = useState(false);
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [profileEditing, setProfileEditing] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileNotice, setProfileNotice] = useState<{
+    tone: 'success' | 'error';
+    text: string;
+  } | null>(null);
+  const [profileForm, setProfileForm] = useState({
+    societyName: '',
+    institution: '',
+    contactPerson: '',
+    contactEmail: '',
+    contactPhone: '',
+    description: '',
+  });
+
+  useEffect(() => {
+    if (!societyProfile.data) return;
+    setProfileForm({
+      societyName: societyProfile.data.name,
+      institution: societyProfile.data.institution,
+      contactPerson: societyProfile.data.contactPerson,
+      contactEmail: societyProfile.data.contactEmail ?? '',
+      contactPhone: societyProfile.data.contactPhone ?? '',
+      description: societyProfile.data.description ?? '',
+    });
+  }, [societyProfile.data]);
 
   const items = requests.data?.items ?? [];
+  const selectedRequests = items.filter((request) =>
+    ['selected', 'completed'].includes(request.status),
+  );
+
+  async function saveProfile() {
+    setProfileSaving(true);
+    setProfileNotice(null);
+    try {
+      await api('/societies/me', {
+        method: 'PATCH',
+        body: {
+          societyName: profileForm.societyName,
+          institution: profileForm.institution,
+          contactPerson: profileForm.contactPerson,
+          contactEmail: profileForm.contactEmail || undefined,
+          contactPhone: profileForm.contactPhone || undefined,
+          description: profileForm.description || undefined,
+        },
+      });
+      setProfileNotice({ tone: 'success', text: 'Profile updated.' });
+      societyProfile.reload();
+      setProfileEditing(false);
+    } catch (caught) {
+      setProfileNotice({
+        tone: 'error',
+        text: caught instanceof Error ? caught.message : 'Unable to update profile',
+      });
+    } finally {
+      setProfileSaving(false);
+    }
+  }
   const active = items.filter((request) =>
     ['submitted', 'open', 'partially_quoted'].includes(request.status),
   ).length;
@@ -221,6 +287,188 @@ function SocietyDashboard() {
             </Card>
           ))}
         </div>
+      </section>
+
+      <section className="mt-10">
+        <SectionHeading
+          title="Selected vendors"
+          description="Vendors you have chosen for your requests."
+        />
+        {selectedRequests.length === 0 ? (
+          <Card className="mt-4 p-6 text-sm text-slate-500">
+            No vendors selected yet. Select a quotation from one of your requests.
+          </Card>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {selectedRequests.map((request) => (
+              <Card key={request.id} className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">{request.title}</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {request.society.name} · {request.category.name} · {request.reference}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-400">
+                      Status: {humanize(request.status)}
+                    </p>
+                  </div>
+                  <Badge tone="emerald">Selected</Badge>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="mt-10">
+        <SectionHeading
+          title="Profile settings"
+          description="Manage your society profile visible to vendors."
+        />
+        {profileNotice && (
+          <div className="mt-4">
+            <Alert tone={profileNotice.tone}>{profileNotice.text}</Alert>
+          </div>
+        )}
+        <Card className="mt-4 p-6">
+          {societyProfile.loading && <LoadingBlock label="Loading profile…" />}
+          {societyProfile.error && <Alert tone="error">{societyProfile.error}</Alert>}
+          {societyProfile.data && (
+            <div className="space-y-4">
+              {!profileEditing ? (
+                <>
+                  <dl className="space-y-2 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Society</dt>
+                      <dd className="font-medium text-slate-800">{societyProfile.data.name}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Institution</dt>
+                      <dd className="font-medium text-slate-800">
+                        {societyProfile.data.institution}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Contact person</dt>
+                      <dd className="font-medium text-slate-800">
+                        {societyProfile.data.contactPerson}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Contact email</dt>
+                      <dd className="font-medium text-slate-800">
+                        {societyProfile.data.contactEmail ?? '—'}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-slate-500">Contact phone</dt>
+                      <dd className="font-medium text-slate-800">
+                        {societyProfile.data.contactPhone ?? '—'}
+                      </dd>
+                    </div>
+                  </dl>
+                  <button
+                    type="button"
+                    className={buttonStyles('secondary', 'sm')}
+                    onClick={() => setProfileEditing(true)}
+                  >
+                    Edit profile
+                  </button>
+                </>
+              ) : (
+                <form
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveProfile();
+                  }}
+                >
+                  <Field label="Society name" htmlFor="society-name">
+                    <input
+                      id="society-name"
+                      className={inputClass}
+                      value={profileForm.societyName}
+                      onChange={(event) =>
+                        setProfileForm({ ...profileForm, societyName: event.target.value })
+                      }
+                      required
+                    />
+                  </Field>
+                  <Field label="Institution" htmlFor="society-institution">
+                    <input
+                      id="society-institution"
+                      className={inputClass}
+                      value={profileForm.institution}
+                      onChange={(event) =>
+                        setProfileForm({ ...profileForm, institution: event.target.value })
+                      }
+                      required
+                    />
+                  </Field>
+                  <Field label="Contact person" htmlFor="society-contact">
+                    <input
+                      id="society-contact"
+                      className={inputClass}
+                      value={profileForm.contactPerson}
+                      onChange={(event) =>
+                        setProfileForm({ ...profileForm, contactPerson: event.target.value })
+                      }
+                      required
+                    />
+                  </Field>
+                  <Field label="Contact email" htmlFor="society-email">
+                    <input
+                      id="society-email"
+                      type="email"
+                      className={inputClass}
+                      value={profileForm.contactEmail}
+                      onChange={(event) =>
+                        setProfileForm({ ...profileForm, contactEmail: event.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field label="Contact phone" htmlFor="society-phone">
+                    <input
+                      id="society-phone"
+                      className={inputClass}
+                      value={profileForm.contactPhone}
+                      onChange={(event) =>
+                        setProfileForm({ ...profileForm, contactPhone: event.target.value })
+                      }
+                    />
+                  </Field>
+                  <Field label="Description" htmlFor="society-description">
+                    <textarea
+                      id="society-description"
+                      rows={3}
+                      className={inputClass}
+                      value={profileForm.description}
+                      onChange={(event) =>
+                        setProfileForm({ ...profileForm, description: event.target.value })
+                      }
+                    />
+                  </Field>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      className={buttonStyles('primary', 'sm')}
+                      disabled={profileSaving}
+                    >
+                      {profileSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      className={buttonStyles('ghost', 'sm')}
+                      onClick={() => setProfileEditing(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+        </Card>
       </section>
     </div>
   );

@@ -366,6 +366,18 @@ export interface VendorReview {
   request: { reference: string; title: string };
 }
 
+export interface MySociety {
+  id: string;
+  name: string;
+  institution: string;
+  contactPerson: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  account: { id: string; name: string; email: string };
+}
 export interface AdminVendor {
   id: string;
   businessName: string;
