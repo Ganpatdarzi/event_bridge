@@ -830,11 +830,11 @@ npm run test:e2e
 
 ## 17. Deployment
 
-| Component        | Host                    | Notes                                                                            |
-| ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
-| Web (static SPA) | Cloudflare Pages (free) | Build `apps/web`; `functions/[[path]].js` proxies `/api` and serves SPA fallback |
-| API              | Vercel Hobby (free)     | Node 22 Express function in `api/index.js`, health check `/health`               |
-| Database         | Neon Free               | Use the pooled URL for the API; run migrations with the direct URL               |
+| Component        | Host                | Notes                                                                                   |
+| ---------------- | ------------------- | --------------------------------------------------------------------------------------- |
+| Web (static SPA) | Vercel Hobby (free) | Root Directory `apps/web`; `api/[...path].js` proxies `/api` and rewrites client routes |
+| API              | Vercel Hobby (free) | Root Directory `apps/api`; Node 22 Express function, health check `/health`             |
+| Database         | Neon Free           | Use the pooled URL for the API; run migrations with the direct URL                      |
 
 See [docs/deployment.md](docs/deployment.md) for the exact free-tier setup steps.
 

@@ -1,123 +1,123 @@
-# Deployment (free plans only)
+# Deployment — two separate Vercel projects (free)
 
-This setup uses only free tiers — no credit card required and no paid plans:
+Everything runs on **Vercel Hobby** ($0/mo) plus **Neon Free** ($0/mo). There are two independent Vercel projects in the same GitHub repo:
 
-| Piece                       | Platform                                                          | Free allowance used                                                  |
-| --------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Web (React SPA)             | **Cloudflare Pages**                                              | Unlimited static bandwidth, 100k Function requests/day               |
-| `/api` proxy + SPA fallback | **Cloudflare Pages Function** (repo root `functions/[[path]].js`) | Included above                                                       |
-| API (Express)               | **Vercel Hobby**                                                  | 1M invocations/mo, 100 GB transfer, 2 GB / 1 vCPU, 300s max duration |
-| Database                    | **Neon Free**                                                     | 0.5 GB storage, 100 CU-hours/mo, no card                             |
+| Project            | Root Directory | What it serves                        |
+| ------------------ | -------------- | ------------------------------------- |
+| `event-bridge-web` | `apps/web`     | React SPA + a `/api/*` proxy function |
+| `event-bridge-api` | `apps/api`     | Express API as a Node function        |
 
-> Render is intentionally **not** used — its automatic-migration blueprint required a paid plan. Migrations are run manually from your machine instead.
+Both use the repo's npm workspaces. Each project's `vercel.json` runs install/build from the repo root via `cd ../..`, so `@event-bridge/shared` always builds first.
 
 ## 1. Neon (database)
 
 1. Create a free project at <https://console.neon.tech>.
-2. Create the `event_bridge` database if it was not created by default.
-3. In the project dashboard, copy two connection strings:
-   - **Pooled connection** — used at runtime (`DATABASE_URL`).
-   - **Direct connection** — used only for migrations (`DIRECT_URL`).
-4. Keep these values private. Never commit them.
+2. Copy two connection strings:
+   - **Pooled** — used at runtime (`DATABASE_URL`).
+   - **Direct** — used only for migrations (`DIRECT_URL`).
+3. Keep them private; never commit them.
 
 ## 2. Run migrations once (from your machine)
 
-Vercel deploys do **not** run migrations for you. From the repo root:
+Vercel does **not** run migrations. From the repo root:
 
 ```powershell
 $env:DATABASE_URL="postgresql://<pooled-user>:<password>@<pooled-host>/event_bridge?sslmode=require"
 $env:DIRECT_URL="postgresql://<user>:<password>@<direct-host>/event_bridge?sslmode=require"
-npm ci --include=dev
+npm ci
 npm run db:migrate -w @event-bridge/api
 ```
 
-`DIRECT_URL` is required because migration DDL must not go through Neon's pooled connection. The runner falls back to `DATABASE_URL` if `DIRECT_URL` is unset, but using the direct URL avoids pooler errors.
+`DIRECT_URL` is required because DDL must not go through Neon's pooled connection.
 
-## 3. Deploy the API to Vercel (Hobby)
+## 3. Deploy the API project first
 
-1. Push this repo to GitHub (already done).
-2. Go to <https://vercel.com/new> and **Import** `Ganpatdarzi/event_bridge`.
-   - Use your **personal** account. Vercel Hobby cannot import repositories owned by organizations.
-3. Framework preset: **Other**. Vercel will detect the root `vercel.json`:
-   - Install: `npm ci`
-   - Build: `npm run build:shared && npm run build -w @event-bridge/api`
+1. <https://vercel.com/new> → **Import** `Ganpatdarzi/event_bridge`.
+2. Project name: e.g. `event-bridge-api`.
+3. **Root Directory**: `apps/api` (click _Edit_ next to the setting).
+4. Framework preset: **Express** (`apps/api/vercel.json` supplies the settings):
+   - Install: `cd ../.. && npm ci`
+   - Build: `cd ../.. && npm run build:shared && npm run build -w @event-bridge/api`
+   - Rewrite: every path → `/api/index` (`apps/api/api/index.js`).
+5. Environment Variables (Production + Preview):
 
-   Vercel may omit dev dependencies during install; the repo is set up so this is harmless: `typescript` and the API's `@types/*` packages are runtime dependencies (so `tsc` always works), and `scripts/prepare.mjs` skips Husky when it is not installed.
-   - Rewrite: every path -> `/api/index` (the Express app in `api/index.js`).
+   | Key                  | Value                                             |
+   | -------------------- | ------------------------------------------------- |
+   | `NODE_ENV`           | `production`                                      |
+   | `DATABASE_URL`       | Neon **pooled** connection string                 |
+   | `JWT_SECRET`         | Long random string (`openssl rand -hex 32`)       |
+   | `JWT_REFRESH_SECRET` | A **different** long random string                |
+   | `APP_ORIGIN`         | Web project URL from step 4 (set after it exists) |
+   | `COOKIE_SECURE`      | `true`                                            |
 
-4. Add these **Environment Variables** (Production + Preview):
+   Do **not** set `DIRECT_URL` on Vercel — migrations are not run there.
 
-   | Key                  | Value                                                             |
-   | -------------------- | ----------------------------------------------------------------- |
-   | `NODE_ENV`           | `production`                                                      |
-   | `DATABASE_URL`       | Neon **pooled** connection string                                 |
-   | `JWT_SECRET`         | Long random string (e.g. `openssl rand -hex 32`)                  |
-   | `JWT_REFRESH_SECRET` | A **different** long random string                                |
-   | `APP_ORIGIN`         | Your Cloudflare Pages URL (e.g. `https://event-bridge.pages.dev`) |
-   | `COOKIE_SECURE`      | `true`                                                            |
+6. Deploy, then note the URL, e.g. `https://event-bridge-api.vercel.app`.
 
-   `PORT` is not needed — Vercel injects it. Do **not** set `DIRECT_URL` on Vercel; migrations are not run there.
-
-5. Deploy. Note the deployment URL, e.g. `https://event-bridge-api.vercel.app`.
-
-   > The API rejects short/placeholder JWT secrets in production, so generate real random values.
-
-### Test the Vercel API directly
+Test it:
 
 ```powershell
 curl https://event-bridge-api.vercel.app/health
 ```
 
-Expect a JSON health payload. If you get a 500, check the Vercel **Runtime Logs** — usually an env var is missing or the Neon pooled string is wrong.
+Expect `{"data":{"status":"ok",...}}`. If it fails, check Vercel **Runtime Logs** — usually a missing env var.
 
-## 4. Deploy the web app to Cloudflare Pages
+## 4. Deploy the web project
 
-1. Go to <https://dash.cloudflare.com> -> **Workers & Pages** -> **Create** -> **Pages** -> **Connect to Git**.
-2. Select `Ganpatdarzi/event_bridge`, branch `main`.
-3. Build settings:
-   - **Root directory**: leave blank (must be repo root so `functions/` is detected).
-   - **Build command**: `npm ci --include=dev && npm run build:shared && npm run build -w @event-bridge/web`
-   - **Build output directory**: `apps/web/dist`
-   - **Node version**: `22` (set as environment variable `NODE_VERSION=22`)
-4. Add an environment variable:
-   - `API_ORIGIN` = your Vercel URL from step 3, e.g. `https://event-bridge-api.vercel.app` (no trailing `/api`).
-5. Deploy. Cloudflare auto-detects the root `functions/[[path]].js` file, which:
-   - proxies `/api/*` to `$API_ORIGIN` (forwarding headers, body, and `Set-Cookie`),
-   - serves the SPA (`/`) for non-API paths that are not static assets,
-   - forces `Cache-Control: no-store` on proxied API responses.
-6. After the first deploy, copy the Pages URL (e.g. `https://event-bridge.pages.dev`) and go back to Vercel -> **Settings -> Environment Variables** -> set `APP_ORIGIN` to that exact URL -> **Redeploy** (or it will auto-redeploy on a Git push).
+1. <https://vercel.com/new> → **Import the same repo** `Ganpatdarzi/event_bridge`.
+2. Project name: e.g. `event-bridge-web`.
+3. **Root Directory**: `apps/web`.
+4. Framework preset: **Vite** (`apps/web/vercel.json` supplies the settings):
+   - Install: `cd ../.. && npm ci`
+   - Build: `cd ../.. && npm run build:shared && npm run build -w @event-bridge/web`
+   - Output Directory: `dist`
+   - Rewrites: `/api/*` → proxy function; everything else that isn't a static file → `/index.html`.
+5. Environment Variable:
+
+   | Key          | Value                                                                                        |
+   | ------------ | -------------------------------------------------------------------------------------------- |
+   | `API_ORIGIN` | API project URL from step 3, e.g. `https://event-bridge-api.vercel.app` (no trailing `/api`) |
+
+6. Deploy and note the URL, e.g. `https://event-bridge-web.vercel.app`.
+7. Go back to the **API project** → Settings → Environment Variables → set `APP_ORIGIN` to this exact web URL → redeploy.
 
 ## 5. Verify the full flow
 
 ```powershell
-# API through the Cloudflare proxy
-curl https://event-bridge.pages.dev/api/v1/health
+# API through the web project's proxy
+curl https://event-bridge-web.vercel.app/api/v1/health
 
 # SPA fallback on refresh of a client route
-curl -I https://event-bridge.pages.dev/dashboard
+curl -I https://event-bridge-web.vercel.app/dashboard
 ```
 
-Then open the Pages URL in a browser and sign up / log in. The refresh cookie is `httpOnly`, `Secure`, `SameSite=Lax`, and stays same-origin because the browser only talks to the Cloudflare Pages domain.
+Then open the web URL and sign up / log in. The browser only talks to `event-bridge-web.vercel.app`; the function in `apps/web/api/[...path].js` forwards `/api/*` to the API project and passes `Set-Cookie` back, so the refresh cookie stays first-party (`httpOnly`, `Secure`, `SameSite=Lax`).
+
+## Why `/api` is proxied instead of called directly
+
+`apps/web/src/lib/api.ts` uses a relative `API_BASE = '/api/v1'`. A Vercel external rewrite could proxy it, but the small Node function is more reliable here: it forwards request bodies/headers, preserves multiple `Set-Cookie` headers, and lets the API origin come from an environment variable instead of a hardcoded URL in `vercel.json`.
 
 ## Local development (unchanged)
 
 ```powershell
 cp .env.example .env
-# fill DATABASE_URL (local Neon pooled or local Postgres), DIRECT_URL, JWT secrets
-npm ci --include=dev
+# fill DATABASE_URL, DIRECT_URL, JWT secrets
+npm ci
 npm run db:migrate -w @event-bridge/api
 npm run dev
 ```
 
-`apps/web/vite.config.ts` proxies `/api` to `http://localhost:4000`, so the local SPA also uses relative `/api/v1` URLs.
+`apps/web/vite.config.ts` proxies `/api` to `http://localhost:4000`, so local development also uses relative `/api/v1` URLs.
 
 ## Troubleshooting
 
-| Symptom                         | Likely fix                                                                                                     |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Browser shows CORS error        | `APP_ORIGIN` on Vercel does not exactly equal the Cloudflare Pages origin.                                     |
-| Login works but refresh fails   | Cloudflare Function is not forwarding `Set-Cookie`; confirm `API_ORIGIN` is the bare Vercel origin.            |
-| 500 on every API call           | Missing `DATABASE_URL` / JWT secrets on Vercel, or `createApp()` failed validation. Check Vercel Runtime Logs. |
-| 404 on `/api/v1/...` via Pages  | The root `functions/[[path]].js` was not deployed — ensure Cloudflare **Root directory is blank**.             |
-| Refresh of a client route 404s  | Static fallback missing; `_redirects` and the Function both handle this — confirm output dir `apps/web/dist`.  |
-| Migration fails on first deploy | Use `DIRECT_URL` (Neon direct connection), not the pooled string.                                              |
+| Symptom                                     | Likely fix                                                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Build fails with `husky: command not found` | Ensure the deployment uses the latest commit. `scripts/prepare.mjs` now skips Husky when it is absent.        |
+| Build fails with `tsc: not found`           | TypeScript is a dependency in this repo; make sure `npm ci` runs from the repo root via `cd ../.. && npm ci`. |
+| Browser shows CORS error                    | `APP_ORIGIN` on the API project must exactly equal the web project origin.                                    |
+| Login works but refresh fails               | Check `API_ORIGIN` on the web project; the proxy must forward `Set-Cookie`.                                   |
+| 404 on `/api/v1/...` via web URL            | Confirm Root Directory is `apps/web` so `apps/web/api/[...path].js` is deployed.                              |
+| Refresh of a client route 404s              | Confirm the web rewrite to `/index.html` and output directory `dist`.                                         |
+| 500 on every API call                       | Missing `DATABASE_URL` / JWT secrets on the API project. Check Runtime Logs.                                  |
+| Migration fails                             | Use `DIRECT_URL` (Neon direct connection), not the pooled string.                                             |
