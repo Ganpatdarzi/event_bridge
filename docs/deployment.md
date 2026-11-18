@@ -52,12 +52,12 @@ npm run db:migrate -w @event-bridge/api
 
    Do **not** set `DIRECT_URL` on Vercel — migrations are not run there.
 
-6. Deploy, then note the URL, e.g. `https://event-bridge-api.vercel.app`.
+6. Deploy, then note the URL, e.g. `https://event-bridge-wine.vercel.app`.
 
 Test it:
 
 ```powershell
-curl https://event-bridge-api.vercel.app/health
+curl https://event-bridge-wine.vercel.app/health
 ```
 
 Expect `{"data":{"status":"ok",...}}`. If it fails, check Vercel **Runtime Logs** — usually a missing env var.
@@ -71,31 +71,27 @@ Expect `{"data":{"status":"ok",...}}`. If it fails, check Vercel **Runtime Logs*
    - Install: `cd ../.. && npm ci`
    - Build: `cd ../.. && npm run build:shared && npm run build -w @event-bridge/web`
    - Output Directory: `dist`
-   - Rewrites: `/api/*` → proxy function; everything else that isn't a static file → `/index.html`.
-5. Environment Variable:
+   - Rewrites: `/api/*` → external rewrite to the API project (`https://event-bridge-wine.vercel.app/api/:path*`); everything else that isn't a static file → `/index.html`.
+5. No environment variables are required for the web project. The API origin is already set in `apps/web/vercel.json`.
 
-   | Key          | Value                                                                                        |
-   | ------------ | -------------------------------------------------------------------------------------------- |
-   | `API_ORIGIN` | API project URL from step 3, e.g. `https://event-bridge-api.vercel.app` (no trailing `/api`) |
-
-6. Deploy and note the URL, e.g. `https://event-bridge-web.vercel.app`.
+6. Deploy and note the URL, e.g. `https://event-bridge-vb33.vercel.app`.
 7. Go back to the **API project** → Settings → Environment Variables → set `APP_ORIGIN` to this exact web URL → redeploy.
 
 ## 5. Verify the full flow
 
 ```powershell
 # API through the web project's proxy
-curl https://event-bridge-web.vercel.app/api/health
+curl https://event-bridge-vb33.vercel.app/api/health
 
 # SPA fallback on refresh of a client route
-curl -I https://event-bridge-web.vercel.app/dashboard
+curl -I https://event-bridge-vb33.vercel.app/dashboard
 ```
 
-Then open the web URL and sign up / log in. The browser only talks to `event-bridge-web.vercel.app`; the function in `apps/web/api/[...path].js` forwards `/api/*` to the API project and passes `Set-Cookie` back, so the refresh cookie stays first-party (`httpOnly`, `Secure`, `SameSite=Lax`).
+Then open the web URL and sign up / log in. The browser only talks to `event-bridge-web.vercel.app`; Vercel's external rewrite forwards `/api/*` to the API project and passes `Set-Cookie` back, so the refresh cookie stays first-party (`httpOnly`, `Secure`, `SameSite=Lax`).
 
 ## Why `/api` is proxied instead of called directly
 
-`apps/web/src/lib/api.ts` uses a relative `API_BASE = '/api/v1'`. A Vercel external rewrite could proxy it, but the small Node function is more reliable here: it forwards request bodies/headers, preserves multiple `Set-Cookie` headers, and lets the API origin come from an environment variable instead of a hardcoded URL in `vercel.json`.
+`apps/web/src/lib/api.ts` uses a relative `API_BASE = '/api/v1'`. Vercel external rewrites forward the request and response (including bodies, headers and cookies) while keeping the browser URL on the web domain, so no CORS/`SameSite` workaround is needed.
 
 ## Local development (unchanged)
 

@@ -4,5 +4,31 @@
   "installCommand": "cd ../.. && npm ci",
   "buildCommand": "cd ../.. && npm run build:shared && npm run build -w @event-bridge/web",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/api/health",
+      "destination": "https://event-bridge-wine.vercel.app/health"
+    },
+    {
+      "source": "/api/health/db",
+      "destination": "https://event-bridge-wine.vercel.app/health/db"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://event-bridge-wine.vercel.app/api/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        { "key": "x-vercel-enable-rewrite-caching", "value": "0" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
 }
