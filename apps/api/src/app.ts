@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import express from 'express';
-import helmet from 'helmet';
+import helmetImport from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { pinoHttp } from 'pino-http';
@@ -11,6 +11,10 @@ import { pool } from './db/pool.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import { globalLimiter } from './middleware/rate-limit.js';
 import { apiRouter } from './modules/index.js';
+
+// Helmet's CommonJS type declarations are resolved differently by Vercel's
+// checker; the cast keeps the callable form used at runtime.
+const helmet = helmetImport as unknown as () => express.RequestHandler;
 
 export function createApp(): express.Express {
   const app = express();
