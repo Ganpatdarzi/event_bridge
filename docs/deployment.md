@@ -85,7 +85,7 @@ Expect `{"data":{"status":"ok",...}}`. If it fails, check Vercel **Runtime Logs*
 
 ```powershell
 # API through the web project's proxy
-curl https://event-bridge-web.vercel.app/api/v1/health
+curl https://event-bridge-web.vercel.app/api/health
 
 # SPA fallback on refresh of a client route
 curl -I https://event-bridge-web.vercel.app/dashboard

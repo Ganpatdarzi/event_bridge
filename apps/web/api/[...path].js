@@ -27,9 +27,16 @@ export default async function handler(req, res) {
   delete headers['content-length'];
   if (body && !headers['content-type']) headers['content-type'] = 'application/json';
 
+  const [pathname, query = ''] = req.url.split('?');
+  const upstreamPath =
+    pathname === '/api/health' || pathname === '/api/health/db'
+      ? pathname.slice('/api'.length)
+      : pathname;
+  const target = `${origin}${upstreamPath}${query ? `?${query}` : ''}`;
+
   let upstream;
   try {
-    upstream = await fetch(`${origin}${req.url}`, {
+    upstream = await fetch(target, {
       method: req.method,
       headers,
       body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,
