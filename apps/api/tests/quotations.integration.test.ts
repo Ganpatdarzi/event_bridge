@@ -320,4 +320,301 @@ describe('quotation and notification flow', () => {
 
     expect(response.body.error.code).toBe('FORBIDDEN');
   });
+
+  async function currentQuotationId(): Promise<string> {
+    const response = await request(app)
+      .get(`/api/v1/requests/${requestId}/quotations`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(200);
+    return response.body.data.items[0].id as string;
+  }
+
+  it('refuses to select from a request that is not in a reviewable state', async () => {
+    const quoteId = await currentQuotationId();
+
+    await pg().query(`update service_requests set status = 'open' where id = $1`, [requestId]);
+    const open = await request(app)
+      .post(`/api/v1/requests/${requestId}/quotations/${quoteId}/select`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(409);
+    expect(open.body.error.code).toBe('CONFLICT');
+
+    await pg().query(`update service_requests set status = 'partially_quoted' where id = $1`, [
+      requestId,
+    ]);
+  });
+
+  it('refuses to select withdrawn or expired quotations', async () => {
+    const quoteId = await currentQuotationId();
+
+    for (const status of ['withdrawn', 'expired']) {
+      await pg().query(`update quotations set status = $1 where id = $2`, [status, quoteId]);
+      const response = await request(app)
+        .post(`/api/v1/requests/${requestId}/quotations/${quoteId}/select`)
+        .set('Authorization', `Bearer ${societyToken}`)
+        .expect(409);
+      expect(response.body.error.code).toBe('CONFLICT');
+    }
+
+    await pg().query(`update quotations set status = 'updated' where id = $1`, [quoteId]);
+  });
+
+  it('prefers a quotation without losing the marker when it is revised', async () => {
+    const quoteId = await currentQuotationId();
+
+    const preferred = await request(app)
+      .post(`/api/v1/requests/${requestId}/quotations/${quoteId}/prefer`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(200);
+    expect(preferred.body.data.status).toBe('preferred');
+
+    await request(app)
+      .post(`/api/v1/requests/${requestId}/quotations`)
+      .set('Authorization', `Bearer ${vendorToken}`)
+      .send({
+        totalPrice: 95_000,
+        description: 'Final revision of the dinner buffet for 250 guests.',
+      })
+      .expect(200);
+
+    const list = await request(app)
+      .get(`/api/v1/requests/${requestId}/quotations`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(200);
+    expect(list.body.data.items[0].status).toBe('preferred');
+  });
+
+  it('moves a request into the quoted review state', async () => {
+    const response = await request(app)
+      .post(`/api/v1/requests/${requestId}/close-quoting`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(200);
+
+    expect(response.body.data.status).toBe('quoted');
+  });
+
+  it('selects a quotation, demotes rivals and notifies the vendor', async () => {
+    const quoteId = await currentQuotationId();
+
+    const selected = await request(app)
+      .post(`/api/v1/requests/${requestId}/quotations/${quoteId}/select`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(200);
+    expect(selected.body.data.status).toBe('selected');
+
+    const requests = await request(app)
+      .get('/api/v1/requests')
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(200);
+    const published = requests.body.data.items.find(
+      (item: { id: string }) => item.id === requestId,
+    );
+    expect(published?.status).toBe('selected');
+
+    const stored = await pg().query<{ selected_quotation_id: string }>(
+      `select selected_quotation_id from service_requests where id = $1`,
+      [requestId],
+    );
+    expect(stored.rows[0]?.selected_quotation_id).toBe(quoteId);
+
+    const vendorNotifications = await request(app)
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${vendorToken}`)
+      .expect(200);
+    expect(
+      vendorNotifications.body.data.items.some(
+        (item: { type: string }) => item.type === 'quotation_selected',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a second selection and a withdrawal after selection', async () => {
+    const quoteId = await currentQuotationId();
+
+    await request(app)
+      .post(`/api/v1/requests/${requestId}/quotations/${quoteId}/select`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(409);
+
+    const withdrawn = await request(app)
+      .post(`/api/v1/quotations/${quoteId}/withdraw`)
+      .set('Authorization', `Bearer ${vendorToken}`)
+      .expect(409);
+    expect(withdrawn.body.error.code).toBe('CONFLICT');
+  });
+
+  it('enforces the one-selected-quotation rule at database level', async () => {
+    const { rows } = await pg().query<{ id: string }>(`select id from users where email = $1`, [
+      outsiderPayload.email,
+    ]);
+    const outsiderVendorId = (
+      await pg().query<{ id: string }>(`select id from vendors where user_id = $1`, [rows[0]?.id])
+    ).rows[0]?.id;
+
+    expect(outsiderVendorId).toBeTruthy();
+
+    const inserted = await pg().query<{ id: string }>(
+      `insert into quotations (reference, request_id, vendor_id, total_price, description, status)
+       values ('Q-LIFECYCLE-TEST', $1, $2, 50000, 'Rival quotation', 'not_selected')
+       returning id`,
+      [requestId, outsiderVendorId],
+    );
+
+    await expect(
+      pg().query(`update quotations set status = 'selected' where id = $1`, [inserted.rows[0]?.id]),
+    ).rejects.toThrow(/unique|duplicate/i);
+  });
+
+  it('returns a normalised comparison payload only to the request owner', async () => {
+    const response = await request(app)
+      .get(`/api/v1/requests/${requestId}/compare`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(200);
+
+    expect(response.body.data.request.id).toBe(requestId);
+    expect(response.body.data.items.length).toBeGreaterThanOrEqual(2);
+    expect(response.body.data.items[0].totalWithExtras).toBeGreaterThanOrEqual(
+      response.body.data.items[0].totalPrice,
+    );
+    expect(response.body.data.summary.count).toBeGreaterThanOrEqual(1);
+    expect(response.body.data.summary.lowestTotal).toBeLessThanOrEqual(
+      response.body.data.summary.highestTotal,
+    );
+
+    await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        role: 'society',
+        name: 'Compare Outsider',
+        email: 'quotes.compare-outsider@example.com',
+        password: 'Society123!',
+        society: {
+          societyName: 'Compare Outsider',
+          institution: 'Other University',
+          contactPerson: 'Compare Outsider',
+        },
+      })
+      .expect(201);
+
+    const otherToken = await login('quotes.compare-outsider@example.com', 'Society123!');
+    await request(app)
+      .get(`/api/v1/requests/${requestId}/compare`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .expect(404);
+  });
+
+  it('does not let another society select a quotation by guessing the request id', async () => {
+    const quoteId = await currentQuotationId();
+
+    await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        role: 'society',
+        name: 'Other Society',
+        email: 'quotes.other-society@example.com',
+        password: 'Society123!',
+        society: {
+          societyName: 'Other Society',
+          institution: 'Other University',
+          contactPerson: 'Other Society',
+        },
+      })
+      .expect(201);
+
+    const otherToken = await login('quotes.other-society@example.com', 'Society123!');
+    const response = await request(app)
+      .post(`/api/v1/requests/${requestId}/quotations/${quoteId}/select`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .expect(404);
+
+    expect(response.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('does not expose the account email on an anonymous vendor profile', async () => {
+    const { rows } = await pg().query<{ id: string }>(
+      'select id from vendors where user_id = (select id from users where email = $1)',
+      [vendorPayload.email],
+    );
+
+    const response = await request(app).get(`/api/v1/vendors/${rows[0]?.id}`).expect(200);
+    expect(response.body.data.contactPhone).toBe(vendorPayload.vendor.contactPhone);
+    expect(response.body.data.contactEmail).toBeUndefined();
+  });
+
+  it('rejects portfolio uploads that are not image data URLs', async () => {
+    const response = await request(app)
+      .post('/api/v1/vendors/me/portfolio')
+      .set('Authorization', `Bearer ${vendorToken}`)
+      .send({
+        dataUrl: `data:text/plain;base64,${Buffer.from('not an image').toString('base64')}`,
+      })
+      .expect(400);
+
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('requires completion before a review can be left', async () => {
+    const tooEarly = await request(app)
+      .post(`/api/v1/requests/${requestId}/review`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .send({ rating: 5 })
+      .expect(409);
+    expect(tooEarly.body.error.code).toBe('CONFLICT');
+
+    const otherToken = await login('quotes.other-society@example.com', 'Society123!');
+    await request(app)
+      .post(`/api/v1/requests/${requestId}/complete`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .expect(404);
+
+    const completed = await request(app)
+      .post(`/api/v1/requests/${requestId}/complete`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(200);
+    expect(completed.body.data.status).toBe('completed');
+
+    const notifications = await request(app)
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${vendorToken}`)
+      .expect(200);
+    expect(
+      notifications.body.data.items.some(
+        (item: { type: string }) => item.type === 'request_completed',
+      ),
+    ).toBe(true);
+
+    const review = await request(app)
+      .post(`/api/v1/requests/${requestId}/review`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .send({ rating: 5, comment: 'Excellent work.' })
+      .expect(201);
+    expect(review.body.data.rating).toBe(5);
+
+    await request(app)
+      .post(`/api/v1/requests/${requestId}/review`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .send({ rating: 4 })
+      .expect(409);
+  });
+
+  it('lazily expires quotations whose validity window has passed', async () => {
+    const { rows } = await pg().query<{ id: string }>(
+      `select id from quotations where reference = 'Q-LIFECYCLE-TEST'`,
+    );
+    const rivalId = rows[0]?.id;
+    expect(rivalId).toBeTruthy();
+
+    await pg().query(
+      `update quotations set status = 'submitted', valid_until = now() - interval '1 day' where id = $1`,
+      [rivalId],
+    );
+
+    const list = await request(app)
+      .get(`/api/v1/requests/${requestId}/quotations`)
+      .set('Authorization', `Bearer ${societyToken}`)
+      .expect(200);
+
+    const rival = list.body.data.items.find((item: { id: string }) => item.id === rivalId);
+    expect(rival?.status).toBe('expired');
+  });
 });

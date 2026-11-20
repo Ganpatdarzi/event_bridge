@@ -472,7 +472,7 @@ function VendorsSection() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base font-semibold text-slate-900">{vendor.businessName}</h3>
-                  <StatusBadge status={vendor.verificationStatus as never} />
+                  <StatusBadge status={vendor.verificationStatus} />
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
                   {vendor.city}
@@ -786,7 +786,7 @@ function RequestsSection() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge status={request.status as never} />
+                  <StatusBadge status={request.status} />
                   <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                     {request.reference}
                   </span>

@@ -23,6 +23,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e -w @event-bridge/web",
     "prepare": "node scripts/prepare.mjs",
     "db:generate": "npm run db:generate -w @event-bridge/api",
     "db:migrate": "npm run db:migrate -w @event-bridge/api",

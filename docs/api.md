@@ -2,9 +2,10 @@
 
 Base URL: `http://localhost:4000` in development. All JSON endpoints live under `/api/v1`.
 
-> These notes are written incrementally. Stages 2–4 (authentication, profiles, categories,
-> administration, requests, matching and distribution) are implemented; later stages add
-> quotations, reviews, notifications and dashboards.
+> These notes are written incrementally. Authentication, profiles, categories, administration,
+> requests, matching, quotations (including prefer/select/withdraw), side-by-side comparison,
+> lazy quotation expiry, request completion, completed-only reviews, notifications and dashboards
+> are implemented. See the README API reference for the full endpoint list.
 
 ## Response envelope
 
@@ -52,6 +53,7 @@ and `GET /admin/audit-logs`.
 | Access token     | JWT, 15 minutes, sent as `Authorization: Bearer <token>`                          |
 | Refresh token    | Opaque 48-byte token in an httpOnly cookie (`eb_rt`), path `/api/v1/auth`, 7 days |
 | Rotation         | `POST /auth/refresh` revokes the presented token and issues a new one             |
+| Replay handling  | Reusing a consumed token revokes every token in its refresh-token family          |
 | Storage          | Only a SHA-256 hash of the refresh token is stored in `refresh_tokens`            |
 | Password hashing | Argon2id, 19 MiB, t=2, p=1                                                        |
 
@@ -141,7 +143,8 @@ Sets the refresh cookie. Unknown email and wrong password return the same `401 U
 ### `POST /auth/refresh`
 
 No body; relies on the `eb_rt` cookie. Rotates the refresh token and returns the same shape as login.
-Returns `401` when the session is missing, revoked or expired.
+Returns `401` when the session is missing, revoked or expired. If a token that was already consumed
+is replayed, the whole token family is revoked and all sessions derived from it must sign in again.
 
 ### `POST /auth/logout`
 
@@ -197,8 +200,9 @@ returned by the detail endpoint.
 ### `GET /vendors/:id`
 
 Public profile of a verified vendor with an active account. Adds `contactPerson`, `contactPhone`,
-`contactEmail`, categories and rating. Returns `404` for pending, suspended or deactivated vendors
-so the directory does not leak their existence.
+categories and rating. The account email is **not** exposed to anonymous callers; it is only
+returned by `GET /vendors/me` and to admins. Returns `404` for pending, suspended or deactivated
+vendors so the directory does not leak their existence.
 
 ### `GET /vendors/me` · `PATCH /vendors/me`
 
@@ -423,6 +427,98 @@ distributed to the caller in `open` or `partially_quoted`.
 Filters: `categoryId`, `search` (title/reference), `sort` (`deadline` default, `newest`, `oldest`)
 plus `page`/`pageSize`. Each item includes the event, society name/institution, budget, deadline,
 the caller's distribution state and `hasQuoted`.
+
+## Quotations and review lifecycle
+
+All routes below require a bearer token. Only an invited, verified vendor may create or update a
+quotation; only the owning society may compare, prefer, select, close quoting or complete a request.
+
+| Method | Endpoint                                       | Access                   | Effect                                    |
+| ------ | ---------------------------------------------- | ------------------------ | ----------------------------------------- |
+| POST   | `/requests/:id/quotations`                     | Invited, verified vendor | Create or update own quotation            |
+| GET    | `/requests/:id/quotations/mine`                | Vendor                   | Own quotation for a request, or `null`    |
+| GET    | `/requests/:id/quotations`                     | Society owner, admin     | Paginated quotations for review           |
+| GET    | `/requests/:id/compare`                        | Society owner, admin     | Normalised side-by-side comparison        |
+| POST   | `/requests/:id/quotations/:quotationId/prefer` | Society owner            | Mark one offer as preferred               |
+| POST   | `/requests/:id/quotations/:quotationId/select` | Society owner            | Select one offer and demote the others    |
+| POST   | `/quotations/:id/withdraw`                     | Owning vendor            | Withdraw an offer before selection        |
+| GET    | `/quotations/mine`                             | Vendor                   | Paginated list of own quotations          |
+| POST   | `/requests/:id/close-quoting`                  | Society owner            | Move `open`/`partially_quoted` → `quoted` |
+| POST   | `/requests/:id/complete`                       | Society owner            | Move `selected` → `completed`             |
+| POST   | `/requests/:id/review`                         | Society owner            | Leave a review after completion           |
+
+Quotation money fields accept numbers or numeric strings; booleans are rejected. A quotation whose
+`validUntil` is in the past is moved to `expired` lazily on the next quotation read or lifecycle
+write — no scheduler is required. Expired, withdrawn and superseded quotations cannot be selected.
+
+Selection, preference and withdrawal run in one transaction: the request row is locked, all
+currently selected/preferred offers are demoted, and database partial unique indexes enforce at
+most one `selected` and one `preferred` quotation per request.
+
+### `GET /requests/:id/compare`
+
+Returns a server-generated payload that the web app renders directly:
+
+```json
+{
+  "data": {
+    "requestId": "...",
+    "request": {
+      "id": "...",
+      "title": "Catering for 180 guests",
+      "status": "quoted",
+      "budgetMin": 120000,
+      "budgetMax": 180000,
+      "currency": "PKR"
+    },
+    "items": [
+      {
+        "quotationId": "...",
+        "reference": "Q-1A2B3C4D",
+        "vendor": {
+          "id": "...",
+          "businessName": "Moments by Adil",
+          "city": "Karachi",
+          "serviceArea": "Karachi"
+        },
+        "totalPrice": 150000,
+        "additionalCharges": 5000,
+        "totalWithExtras": 155000,
+        "inclusions": "...",
+        "exclusions": null,
+        "availableOnDate": true,
+        "validUntil": "2026-11-30T17:00:00.000Z",
+        "status": "submitted",
+        "submittedAt": "2026-11-20T10:00:00.000Z"
+      }
+    ],
+    "summary": {
+      "count": 1,
+      "lowestTotal": 155000,
+      "highestTotal": 155000,
+      "averageTotal": 155000
+    }
+  }
+}
+```
+
+`summary` only counts comparable statuses (`submitted`, `updated`, `preferred`, `selected`).
+Withdrawn offers are omitted; expired, rejected and `not_selected` offers remain visible for the
+audit trail but are excluded from the summary.
+
+### `POST /requests/:id/close-quoting` · `POST /requests/:id/complete`
+
+No body. Both return the updated request detail. They are society-owned. Closing quoting audits
+`request.review_opened` and requires at least one non-withdrawn, non-expired quotation. Completion
+audits `request.completed` and notifies the vendor whose quotation was selected with
+`request_completed`. Illegal transitions return `409 CONFLICT` or `422 RULE_VIOLATION`.
+
+### `POST /requests/:id/review`
+
+Society owner only, and only once the request status is `completed`. Body:
+`{ "rating": 5, "comment": "Optional, up to 2000 characters" }`. Returns `201` with the review.
+A second review for the same request returns `409 CONFLICT`. Before completion the same call
+returns `409 CONFLICT`.
 
 ## Administration
 

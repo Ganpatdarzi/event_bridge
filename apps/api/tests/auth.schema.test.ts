@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loginSchema, registerSchema } from '@event-bridge/shared';
+import { loginSchema, registerSchema, upsertQuotationSchema } from '@event-bridge/shared';
 
 const account = {
   name: 'Test User',
@@ -75,5 +75,22 @@ describe('loginSchema', () => {
   it('requires a valid email and a non-empty password', () => {
     expect(loginSchema.safeParse({ email: 'nope', password: '' }).success).toBe(false);
     expect(loginSchema.safeParse({ email: 'user@example.com', password: 'x' }).success).toBe(true);
+  });
+});
+
+describe('upsertQuotationSchema', () => {
+  const quotation = { totalPrice: 50_000, description: 'A detailed quotation for the event.' };
+
+  it('accepts numeric strings for money fields', () => {
+    expect(upsertQuotationSchema.safeParse({ ...quotation, totalPrice: '50000' }).success).toBe(
+      true,
+    );
+  });
+
+  it('rejects booleans that z.coerce.number() would silently accept', () => {
+    expect(upsertQuotationSchema.safeParse({ ...quotation, totalPrice: true }).success).toBe(false);
+    expect(
+      upsertQuotationSchema.safeParse({ ...quotation, additionalCharges: false }).success,
+    ).toBe(false);
   });
 });

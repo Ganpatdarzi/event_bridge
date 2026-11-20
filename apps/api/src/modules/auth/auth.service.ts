@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { LoginInput, RegisterInput, VendorStatus } from '@event-bridge/shared';
 import { db } from '../../db/index.js';
@@ -175,12 +176,14 @@ async function issueTokens(
   userId: string,
   role: User['role'],
   meta: RequestMeta,
+  familyId: string = randomUUID(),
 ): Promise<SessionTokens> {
   const refreshToken = generateRefreshToken();
   const refreshExpiresAt = new Date(Date.now() + refreshTokenTtlMs);
 
   await db.insert(refreshTokens).values({
     userId,
+    familyId,
     tokenHash: hashToken(refreshToken),
     expiresAt: refreshExpiresAt,
     userAgent: meta.userAgent ?? null,
@@ -215,49 +218,77 @@ export async function loginUser(
   return { session, tokens };
 }
 
+/** Reuse of an already-consumed token invalidates the entire rotation chain. */
+async function revokeReusedFamily(tokenHash: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [used] = await tx
+      .select({ familyId: refreshTokens.familyId })
+      .from(refreshTokens)
+      .where(eq(refreshTokens.tokenHash, tokenHash))
+      .limit(1);
+
+    if (!used) return;
+
+    await tx
+      .update(refreshTokens)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(refreshTokens.familyId, used.familyId), isNull(refreshTokens.revokedAt)));
+  });
+}
+
 export async function rotateRefreshToken(
   rawToken: string,
   meta: RequestMeta,
 ): Promise<{ session: Session; tokens: SessionTokens }> {
   const tokenHash = hashToken(rawToken);
 
-  // Atomically consume the presented token. A single UPDATE ... RETURNING
-  // ensures two concurrent refreshes cannot both mint a replacement session.
-  const rotated = await db.transaction(async (tx) => {
-    const [stored] = await tx
-      .update(refreshTokens)
-      .set({ revokedAt: new Date() })
-      .where(
-        and(
-          eq(refreshTokens.tokenHash, tokenHash),
-          isNull(refreshTokens.revokedAt),
-          gt(refreshTokens.expiresAt, new Date()),
-        ),
-      )
-      .returning();
+  let rotated: { user: User; refreshToken: string; refreshExpiresAt: Date };
 
-    if (!stored) {
-      throw AppError.unauthenticated('Your session has expired. Please sign in again.');
-    }
+  try {
+    // Atomically consume the presented token. A single UPDATE ... RETURNING
+    // ensures two concurrent refreshes cannot both mint a replacement session.
+    rotated = await db.transaction(async (tx) => {
+      const [stored] = await tx
+        .update(refreshTokens)
+        .set({ revokedAt: new Date() })
+        .where(
+          and(
+            eq(refreshTokens.tokenHash, tokenHash),
+            isNull(refreshTokens.revokedAt),
+            gt(refreshTokens.expiresAt, new Date()),
+          ),
+        )
+        .returning();
 
-    const [user] = await tx.select().from(users).where(eq(users.id, stored.userId)).limit(1);
-    if (!user || user.status !== 'active') {
-      throw AppError.unauthenticated('Your session is no longer valid.');
-    }
+      if (!stored) {
+        throw AppError.unauthenticated('Your session has expired. Please sign in again.');
+      }
 
-    const refreshToken = generateRefreshToken();
-    const refreshExpiresAt = new Date(Date.now() + refreshTokenTtlMs);
+      const [user] = await tx.select().from(users).where(eq(users.id, stored.userId)).limit(1);
+      if (!user || user.status !== 'active') {
+        throw AppError.unauthenticated('Your session is no longer valid.');
+      }
 
-    await tx.insert(refreshTokens).values({
-      userId: user.id,
-      tokenHash: hashToken(refreshToken),
-      expiresAt: refreshExpiresAt,
-      userAgent: meta.userAgent ?? null,
-      ip: meta.ip ?? null,
+      const refreshToken = generateRefreshToken();
+      const refreshExpiresAt = new Date(Date.now() + refreshTokenTtlMs);
+
+      await tx.insert(refreshTokens).values({
+        userId: user.id,
+        familyId: stored.familyId,
+        tokenHash: hashToken(refreshToken),
+        expiresAt: refreshExpiresAt,
+        userAgent: meta.userAgent ?? null,
+        ip: meta.ip ?? null,
+      });
+
+      return { user, refreshToken, refreshExpiresAt };
     });
-
-    return { user, refreshToken, refreshExpiresAt };
-  });
+  } catch (error) {
+    if (error instanceof AppError && error.statusCode === 401) {
+      await revokeReusedFamily(tokenHash);
+    }
+    throw error;
+  }
 
   const tokens = {
     accessToken: signAccessToken(rotated.user.id, rotated.user.role),

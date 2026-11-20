@@ -8,6 +8,8 @@ export const refreshTokens = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    /** Rotation chain id: reuse of any token revokes the whole family. */
+    familyId: uuid('family_id').notNull().defaultRandom(),
     tokenHash: varchar('token_hash', { length: 64 }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
@@ -18,6 +20,7 @@ export const refreshTokens = pgTable(
   (table) => [
     uniqueIndex('refresh_tokens_hash_uq').on(table.tokenHash),
     index('refresh_tokens_user_idx').on(table.userId),
+    index('refresh_tokens_family_idx').on(table.familyId),
   ],
 );
 

@@ -3,12 +3,12 @@
  *
  * The API always answers with either `{ data }` on success or
  * `{ error: { code, message, details? } }` on failure. Authentication uses a
- * short-lived access token (kept here) plus an httpOnly refresh cookie, so a
- * 401 transparently triggers one refresh-and-retry cycle.
+ * short-lived access token (kept in memory only) plus an httpOnly refresh
+ * cookie, so a 401 transparently triggers one refresh-and-retry cycle and a
+ * page reload restores the session from the cookie in `AuthProvider`.
  */
 
 const API_BASE = '/api/v1';
-const TOKEN_KEY = 'eb_access';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -36,24 +36,13 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
 
 let accessToken: string | null = null;
 
-try {
-  accessToken = localStorage.getItem(TOKEN_KEY);
-} catch {
-  // Storage can be unavailable (private mode); fall back to memory only.
-}
-
 export function getAccessToken(): string | null {
   return accessToken;
 }
 
+/** Never persist the bearer token: XSS must not be able to read it from storage. */
 export function setAccessToken(token: string | null): void {
   accessToken = token;
-  try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    // Ignore storage failures.
-  }
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -341,6 +330,40 @@ export interface Quotation {
 
 export interface RequestQuotationsPage extends Paginated<Quotation> {
   requestId: string;
+}
+
+export interface QuotationComparisonItem {
+  quotationId: string;
+  reference: string;
+  vendor: { id: string; businessName: string; city: string; serviceArea: string | null };
+  totalPrice: number;
+  additionalCharges: number | null;
+  totalWithExtras: number;
+  inclusions: string | null;
+  exclusions: string | null;
+  availableOnDate: boolean | null;
+  validUntil: string | null;
+  status: string;
+  submittedAt: string;
+}
+
+export interface QuotationComparison {
+  requestId: string;
+  request: {
+    id: string;
+    title: string;
+    status: string;
+    budgetMin: number | null;
+    budgetMax: number | null;
+    currency: string;
+  };
+  items: QuotationComparisonItem[];
+  summary: {
+    count: number;
+    lowestTotal: number | null;
+    highestTotal: number | null;
+    averageTotal: number | null;
+  };
 }
 
 export interface NotificationItem {

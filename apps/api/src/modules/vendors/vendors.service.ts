@@ -45,7 +45,6 @@ export interface PublicVendorSummary {
 export interface PublicVendorDetail extends PublicVendorSummary {
   contactPerson: string | null;
   contactPhone: string | null;
-  contactEmail: string;
   portfolio: PortfolioImageSummary[];
 }
 
@@ -255,7 +254,6 @@ export async function getPublicVendor(vendorId: string): Promise<PublicVendorDet
       serviceArea: vendors.serviceArea,
       contactPerson: vendors.contactPerson,
       contactPhone: vendors.contactPhone,
-      contactEmail: users.email,
       verifiedAt: vendors.verifiedAt,
     })
     .from(vendors)
@@ -349,43 +347,48 @@ export async function addPortfolioImage(
   dataUrl: string,
   caption?: string | null,
 ): Promise<PortfolioImageSummary> {
-  const [vendor] = await db
-    .select({ id: vendors.id })
-    .from(vendors)
-    .where(eq(vendors.userId, userId))
-    .limit(1);
+  const created = await db.transaction(async (tx) => {
+    // Locking the vendor row serialises concurrent uploads for that vendor,
+    // so the 8-image cap cannot be bypassed by parallel requests.
+    const [vendor] = await tx
+      .select({ id: vendors.id })
+      .from(vendors)
+      .where(eq(vendors.userId, userId))
+      .for('update')
+      .limit(1);
 
-  if (!vendor) throw AppError.notFound('Vendor profile not found');
+    if (!vendor) throw AppError.notFound('Vendor profile not found');
 
-  const [existingCount] = await db
-    .select({ total: sql<number>`count(*)::int` })
-    .from(portfolioImages)
-    .where(eq(portfolioImages.vendorId, vendor.id));
+    const [existingCount] = await tx
+      .select({ total: sql<number>`count(*)::int` })
+      .from(portfolioImages)
+      .where(eq(portfolioImages.vendorId, vendor.id));
 
-  if ((existingCount?.total ?? 0) >= 8) {
-    throw AppError.ruleViolation('You can upload at most 8 portfolio images.');
-  }
+    if ((existingCount?.total ?? 0) >= 8) {
+      throw AppError.ruleViolation('You can upload at most 8 portfolio images.');
+    }
 
-  const [created] = await db
-    .insert(portfolioImages)
-    .values({ vendorId: vendor.id, dataUrl, caption: caption ?? null })
-    .returning({
-      id: portfolioImages.id,
-      dataUrl: portfolioImages.dataUrl,
-      caption: portfolioImages.caption,
-      createdAt: portfolioImages.createdAt,
-    });
+    const [image] = await tx
+      .insert(portfolioImages)
+      .values({ vendorId: vendor.id, dataUrl, caption: caption ?? null })
+      .returning({
+        id: portfolioImages.id,
+        dataUrl: portfolioImages.dataUrl,
+        caption: portfolioImages.caption,
+        createdAt: portfolioImages.createdAt,
+      });
 
-  if (!created) throw new Error('Portfolio insert failed');
+    if (!image) throw new Error('Portfolio insert failed');
 
-  await db.transaction(async (tx) => {
     await writeAuditTx(tx, {
       actorId: userId,
       action: 'vendor.portfolio_added',
       targetType: 'portfolio_image',
-      targetId: null,
+      targetId: image.id,
       metadata: { vendorId: vendor.id },
     });
+
+    return image;
   });
 
   return {
@@ -420,7 +423,7 @@ export async function removePortfolioImage(userId: string, imageId: string): Pro
       actorId: userId,
       action: 'vendor.portfolio_removed',
       targetType: 'portfolio_image',
-      targetId: null,
+      targetId: image.id,
       metadata: { vendorId: vendor.id, imageId },
     });
   });

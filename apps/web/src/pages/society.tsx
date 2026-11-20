@@ -44,6 +44,11 @@ function SocietyDashboard() {
   const [showForm, setShowForm] = useState(false);
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [workingId, setWorkingId] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<{
+    tone: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileNotice, setProfileNotice] = useState<{
@@ -103,6 +108,27 @@ function SocietyDashboard() {
       setProfileSaving(false);
     }
   }
+  async function changeStatus(
+    requestId: string,
+    action: 'close-quoting' | 'complete',
+    message: string,
+  ) {
+    setWorkingId(requestId);
+    setActionNotice(null);
+    try {
+      await api(`/requests/${requestId}/${action}`, { method: 'POST' });
+      setActionNotice({ tone: 'success', text: message });
+      requests.reload();
+    } catch (caught) {
+      setActionNotice({
+        tone: 'error',
+        text: caught instanceof Error ? caught.message : 'Unable to update the request',
+      });
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
   const active = items.filter((request) =>
     ['submitted', 'open', 'partially_quoted'].includes(request.status),
   ).length;
@@ -166,6 +192,7 @@ function SocietyDashboard() {
         />
 
         {requests.error && <Alert tone="error">{requests.error}</Alert>}
+        {actionNotice && <Alert tone={actionNotice.tone}>{actionNotice.text}</Alert>}
 
         {requests.loading && (
           <div className="space-y-3">
@@ -241,28 +268,58 @@ function SocietyDashboard() {
                         request.quotationCount === 1 ? 'application' : 'applications'
                       } received`}
                 </p>
-                {request.quotationCount > 0 && (
-                  <button
-                    type="button"
-                    className={buttonStyles('secondary', 'sm')}
-                    onClick={() =>
-                      setOpenRequestId((current) => (current === request.id ? null : request.id))
-                    }
-                  >
-                    {openRequestId === request.id ? 'Hide applications' : 'Review applications'}
-                  </button>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {['open', 'partially_quoted'].includes(request.status) &&
+                    request.quotationCount > 0 && (
+                      <button
+                        type="button"
+                        disabled={workingId === request.id}
+                        className={buttonStyles('secondary', 'sm')}
+                        onClick={() =>
+                          changeStatus(request.id, 'close-quoting', 'Quotation review is now open.')
+                        }
+                      >
+                        {workingId === request.id ? 'Updating…' : 'Start review'}
+                      </button>
+                    )}
+                  {request.quotationCount > 0 && (
+                    <button
+                      type="button"
+                      className={buttonStyles('secondary', 'sm')}
+                      onClick={() =>
+                        setOpenRequestId((current) => (current === request.id ? null : request.id))
+                      }
+                    >
+                      {openRequestId === request.id ? 'Hide applications' : 'Review applications'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {openRequestId === request.id && (
                 <RequestApplications
                   requestId={request.id}
-                  canSelect={['open', 'partially_quoted', 'quoted'].includes(request.status)}
+                  canSelect={['partially_quoted', 'quoted'].includes(request.status)}
                   onSelect={() => requests.reload()}
                 />
               )}
 
-              {['selected', 'completed'].includes(request.status) && (
+              {request.status === 'selected' && (
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  <button
+                    type="button"
+                    disabled={workingId === request.id}
+                    className={buttonStyles('primary', 'sm')}
+                    onClick={() =>
+                      changeStatus(request.id, 'complete', 'Engagement marked as completed.')
+                    }
+                  >
+                    {workingId === request.id ? 'Updating…' : 'Mark as completed'}
+                  </button>
+                </div>
+              )}
+
+              {request.status === 'completed' && (
                 <div className="mt-3 border-t border-slate-100 pt-3">
                   {reviewingId === request.id ? (
                     <ReviewForm

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { numericInput } from './common.js';
 
 const MAX_MONEY = 9_999_999_999.99;
 
@@ -14,11 +15,13 @@ function optionalText(max: number) {
   );
 }
 
-const moneySchema = z.coerce
-  .number({ message: 'Enter a valid amount' })
-  .finite()
-  .min(0, 'Amount cannot be negative')
-  .max(MAX_MONEY);
+const moneySchema = numericInput.pipe(
+  z
+    .number({ message: 'Enter a valid amount' })
+    .finite()
+    .min(0, 'Amount cannot be negative')
+    .max(MAX_MONEY),
+);
 
 const nullableMoneySchema = z.preprocess(emptyToNull, moneySchema.nullable());
 

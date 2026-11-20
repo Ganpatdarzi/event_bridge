@@ -195,11 +195,31 @@ describe('authentication API', () => {
     // Replaying the revoked cookie must fail.
     await request(app).post('/api/v1/auth/refresh').set('Cookie', oldCookie).expect(401);
 
-    // Rotation revokes one token and issues one, so the active count is unchanged.
+    // Rotation issues one replacement, but replaying the old token revokes
+    // that replacement too because both belong to the same session family.
     const { rows: after } = await pg().query<{ count: number }>(
       'select count(*)::int as count from refresh_tokens where revoked_at is null',
     );
-    expect(after[0]?.count).toBe(before[0]?.count);
+    expect(after[0]?.count).toBe((before[0]?.count ?? 0) - 1);
+  });
+
+  it('revokes the whole rotation family when a consumed token is replayed', async () => {
+    const agent = request.agent(app);
+
+    const login = await agent
+      .post('/api/v1/auth/login')
+      .send({ email: societyPayload.email, password: societyPayload.password })
+      .expect(200);
+
+    const originalCookie = refreshCookieFrom(login);
+    const refreshed = await agent.post('/api/v1/auth/refresh').expect(200);
+    const currentCookie = refreshCookieFrom(refreshed);
+
+    // Replaying the consumed token from another client is a theft signal.
+    await request(app).post('/api/v1/auth/refresh').set('Cookie', originalCookie).expect(401);
+
+    // The token issued moments earlier in the same chain must now be dead too.
+    await request(app).post('/api/v1/auth/refresh').set('Cookie', currentCookie).expect(401);
   });
 
   it('logs out by revoking the refresh token and clearing the cookie', async () => {

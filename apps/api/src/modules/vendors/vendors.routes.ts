@@ -14,8 +14,18 @@ import {
 import { listVendorReviewsHandler } from '../reviews/reviews.controller.js';
 
 const vendorParams = z.object({ id: uuidSchema });
+const imageDataUrl = /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
 const portfolioBodySchema = z.object({
-  dataUrl: z.string().trim().min(20).max(3_000_000),
+  dataUrl: z
+    .string()
+    .trim()
+    .min(20)
+    .max(3_000_000)
+    .refine((value) => imageDataUrl.test(value), 'Upload a PNG, JPEG, WebP or GIF image.')
+    .refine((value) => {
+      const payload = value.slice(value.indexOf(',') + 1);
+      return Buffer.byteLength(payload, 'base64') <= 2 * 1024 * 1024;
+    }, 'Images must be 2 MB or smaller.'),
   caption: z.string().trim().max(240).optional(),
 });
 

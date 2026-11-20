@@ -9,7 +9,9 @@ import { parsePagination } from '../../lib/pagination.js';
 import { requestListQuerySchema, vendorRequestQuerySchema } from './requests.schema.js';
 import {
   cancelRequest as cancelRequestService,
+  closeQuoting as closeQuotingService,
   closeRequest as closeRequestService,
+  completeRequest as completeRequestService,
   createServiceRequest,
   getRequestDetail,
   listRequestVendors,
@@ -76,6 +78,20 @@ export const closeRequest: RequestHandler = async (req, res) => {
 
   const { reason } = closeRequestSchema.parse(req.body ?? {});
   const request = await closeRequestService(req.user, req.params.id as string, reason);
+  res.json({ data: request });
+};
+
+export const closeQuoting: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+
+  const request = await closeQuotingService(req.user, req.params.id as string);
+  res.json({ data: request });
+};
+
+export const completeRequest: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+
+  const request = await completeRequestService(req.user, req.params.id as string);
   res.json({ data: request });
 };
 

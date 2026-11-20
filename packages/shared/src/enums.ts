@@ -58,7 +58,9 @@ export const REQUEST_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
   draft: ['submitted', 'cancelled'],
   submitted: ['open', 'cancelled'],
   open: ['partially_quoted', 'quoted', 'closed', 'cancelled'],
-  partially_quoted: ['quoted', 'closed', 'cancelled'],
+  // A request can be selected as soon as it has a quotation. `quoted` is a
+  // useful review state but is not a prerequisite for selection.
+  partially_quoted: ['quoted', 'selected', 'closed', 'cancelled'],
   quoted: ['selected', 'closed', 'cancelled'],
   selected: ['completed', 'cancelled'],
   completed: ['closed'],
@@ -67,7 +69,10 @@ export const REQUEST_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
 };
 
 /** Statuses in which a request still accepts vendor quotations. */
-export const REQUEST_ACCEPTS_QUOTES: RequestStatus[] = ['open', 'partially_quoted'];
+export const REQUEST_ACCEPTS_QUOTES: RequestStatus[] = ['open', 'partially_quoted', 'quoted'];
+
+/** Statuses from which a society may select or mark a quotation as preferred. */
+export const REQUEST_ACCEPTS_DECISIONS: RequestStatus[] = ['partially_quoted', 'quoted'];
 
 /** Statuses in which a society may edit request details. */
 export const REQUEST_EDITABLE: RequestStatus[] = ['draft', 'submitted', 'open', 'partially_quoted'];
@@ -91,7 +96,8 @@ export const quotationStatusSchema = z.enum(QUOTATION_STATUSES);
 export const QUOTATION_TRANSITIONS: Record<QuotationStatus, QuotationStatus[]> = {
   submitted: ['updated', 'withdrawn', 'preferred', 'selected', 'not_selected', 'expired'],
   updated: ['submitted', 'withdrawn', 'preferred', 'selected', 'not_selected', 'expired'],
-  preferred: ['selected', 'not_selected', 'withdrawn', 'expired'],
+  // Un-marking a preference returns the offer to its editable/latest revision.
+  preferred: ['updated', 'selected', 'not_selected', 'withdrawn', 'expired'],
   selected: [],
   not_selected: [],
   withdrawn: [],
@@ -100,6 +106,9 @@ export const QUOTATION_TRANSITIONS: Record<QuotationStatus, QuotationStatus[]> =
 
 /** Statuses a vendor may still edit or withdraw. */
 export const QUOTATION_EDITABLE: QuotationStatus[] = ['submitted', 'updated', 'preferred'];
+
+/** Statuses a society may select or mark as preferred. */
+export const QUOTATION_DECIDABLE: QuotationStatus[] = ['submitted', 'updated', 'preferred'];
 
 /* ------------------------------------------------------------------ */
 /* Distribution                                                        */
@@ -119,6 +128,7 @@ export const NOTIFICATION_TYPES = [
   'quotation_selected',
   'quotation_rejected',
   'request_closed',
+  'request_completed',
   'vendor_status',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

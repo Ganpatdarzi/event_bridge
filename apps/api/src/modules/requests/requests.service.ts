@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import {
+  canTransitionRequest,
   REQUEST_ACCEPTS_QUOTES,
   REQUEST_EDITABLE,
   type CreateRequestInput,
@@ -1285,6 +1286,134 @@ export async function closeRequest(
       targetType: 'request',
       targetId: request.id,
       metadata: { reason: reason ?? null },
+    });
+  });
+
+  return getRequestDetail(viewer, requestId);
+}
+
+/** Society-owned transition that freezes the collection window for review. */
+export async function closeQuoting(
+  viewer: RequestViewer,
+  requestId: string,
+): Promise<RequestDetail> {
+  await db.transaction(async (tx) => {
+    const [request] = await tx
+      .select()
+      .from(serviceRequests)
+      .where(eq(serviceRequests.id, requestId))
+      .for('update')
+      .limit(1);
+
+    if (!request) throw AppError.notFound('Request not found');
+
+    const [society] = await tx
+      .select({ userId: societies.userId })
+      .from(societies)
+      .where(eq(societies.id, request.societyId))
+      .limit(1);
+
+    if (!society || society.userId !== viewer.id) {
+      throw AppError.notFound('Request not found');
+    }
+
+    if (!canTransitionRequest(request.status, 'quoted')) {
+      throw AppError.conflict('CONFLICT', 'This request is no longer collecting quotations');
+    }
+
+    const [{ total } = { total: 0 }] = await tx
+      .select({ total: sql<number>`count(*)::int` })
+      .from(quotations)
+      .where(
+        and(
+          eq(quotations.requestId, requestId),
+          ne(quotations.status, 'withdrawn'),
+          ne(quotations.status, 'expired'),
+        ),
+      );
+
+    if (total === 0) {
+      throw AppError.ruleViolation('At least one quotation is required before starting review');
+    }
+
+    await tx
+      .update(serviceRequests)
+      .set({ status: 'quoted', updatedAt: new Date() })
+      .where(eq(serviceRequests.id, requestId));
+
+    await writeAuditTx(tx, {
+      actorId: viewer.id,
+      action: 'request.review_opened',
+      targetType: 'request',
+      targetId: requestId,
+      metadata: { quotationCount: total },
+    });
+  });
+
+  return getRequestDetail(viewer, requestId);
+}
+
+/** Society-owned transition that closes out a successfully selected engagement. */
+export async function completeRequest(
+  viewer: RequestViewer,
+  requestId: string,
+): Promise<RequestDetail> {
+  await db.transaction(async (tx) => {
+    const [request] = await tx
+      .select()
+      .from(serviceRequests)
+      .where(eq(serviceRequests.id, requestId))
+      .for('update')
+      .limit(1);
+
+    if (!request) throw AppError.notFound('Request not found');
+
+    const [society] = await tx
+      .select({ name: societies.name, userId: societies.userId })
+      .from(societies)
+      .where(eq(societies.id, request.societyId))
+      .limit(1);
+
+    if (!society || society.userId !== viewer.id) {
+      throw AppError.notFound('Request not found');
+    }
+
+    if (!canTransitionRequest(request.status, 'completed')) {
+      throw AppError.conflict('CONFLICT', 'Only a selected request can be marked complete');
+    }
+
+    if (!request.selectedQuotationId) {
+      throw AppError.conflict('CONFLICT', 'A quotation must be selected before completion');
+    }
+
+    await tx
+      .update(serviceRequests)
+      .set({ status: 'completed', updatedAt: new Date() })
+      .where(eq(serviceRequests.id, requestId));
+
+    const [vendorUser] = await tx
+      .select({ userId: vendors.userId })
+      .from(quotations)
+      .innerJoin(vendors, eq(vendors.id, quotations.vendorId))
+      .where(eq(quotations.id, request.selectedQuotationId))
+      .limit(1);
+
+    if (vendorUser) {
+      await tx.insert(notifications).values({
+        userId: vendorUser.userId,
+        type: 'request_completed',
+        title: 'Engagement marked complete',
+        body: `${society.name} marked "${request.title}" as complete. The society can now leave a review.`,
+        link: '/vendor',
+      });
+    }
+
+    await writeAuditTx(tx, {
+      actorId: viewer.id,
+      action: 'request.completed',
+      targetType: 'request',
+      targetId: requestId,
+      metadata: { selectedQuotationId: request.selectedQuotationId },
     });
   });
 

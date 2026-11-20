@@ -6,33 +6,36 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 
 [![Status](https://img.shields.io/badge/status-stages%200--4%20complete-brightgreen)](<>)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen)](<>)
-[![Tests](https://img.shields.io/badge/tests-26%20passing-brightgreen)](<>)
+[![Tests](https://img.shields.io/badge/tests-68%20passing-brightgreen)](<>)
 [![Stack](https://img.shields.io/badge/stack-React%20%7C%20Node%20%7C%20Express%20%7C%20Neon-1f6feb)](<>)
 [![Docs](https://img.shields.io/badge/docs-SRS%20v1.0-informational)](<>)
 
-> **Implementation status (17 Nov 2026):** the backend is complete for **stages 0–4** — npm
-> workspaces, the full 14-table schema with migrations, the seed script, authentication (JWT
-> access token + rotating refresh cookie, argon2id hashing), society/vendor profiles, the public
-> vendor directory, admin-managed categories, admin vendor review and account administration,
-> plus request drafts, submission, vendor matching/distribution, request management and the
-> vendor request board.
+> **Implementation status (20 Nov 2026):** npm workspaces, the 16-table schema with migrations,
+> the seed script, authentication (JWT access token + rotating refresh cookie, argon2id hashing),
+> society/vendor profiles, the public vendor directory, admin-managed categories, vendor review
+> and account administration, request drafting/submission/matching, the vendor request board,
+> quotations with prefer/select/withdraw, server-generated side-by-side comparison, lazy expiry,
+> request completion, completed-only reviews, portfolio uploads, notifications and admin
+> dashboards are all implemented.
 >
-> **Quality gates are green.** `npm run typecheck`, `npm run lint`, `npm run build` and
-> `npm test` all pass; the suite runs **36/36 tests**, including the real migrations and the
-> auth, quotation and notification flows against PostgreSQL-in-WASM.
+> **Quality gates are green.** `npm run typecheck`, `npm run lint`, `npm run build`,
+> `npm run format:check`, `npm test` and `npm run test:e2e` all pass; the Vitest suites run
+> **68/68 tests** and Playwright adds **2/2 browser tests**. Coverage includes real migrations and
+> the auth, refresh-family revocation, quotation lifecycle, completion, comparison, notification,
+> mandatory security and rate-limit flows against PostgreSQL-in-WASM, React component tests, and
+> browser navigation/sign-in/comparison flows.
 >
-> **Frontend.** A working React + TypeScript frontend runs against the live API: a marketing
-> landing page, a searchable vendor directory, login and registration for both societies and
-> vendors, a society dashboard that publishes requests and reviews vendor applications, a vendor
-> dashboard showing verification, matched requests and an inline quotation form, an admin console
-> with platform stats, vendor approval/rejection and category oversight, and a notification bell
-> with unread counts. Routing uses a single `BrowserRouter`, sessions are restored from the
-> httpOnly refresh cookie, and the UI is built with Tailwind.
+> **Frontend.** A working React + TypeScript frontend runs against the API: a marketing landing
+> page, a searchable vendor directory, login and registration for both societies and vendors, a
+> society dashboard that publishes requests and reviews/compares/selects vendor applications, a
+> vendor dashboard with verification, matched requests and an inline quotation form, an admin
+> console with platform stats, moderation and category oversight, and a notification bell with
+> unread counts. The bearer token is kept in memory; page reloads restore the session from the
+> httpOnly refresh cookie.
 >
-> **Not built yet.** Quotation selection/preference, withdrawal, a dedicated side-by-side
-> comparison view, reviews, portfolio uploads, payments and analytics. The
-> [API reference](#8-api-reference) and [build order](#21-build-order) describe the complete
-> target specification; shipped endpoints and partially built stages are called out.
+> **Not built yet.** Multiple society representatives, payments and analytics. The
+> [API reference](#8-api-reference) and
+> [build order](#21-build-order) describe the target specification; shipped endpoints are marked.
 
 ---
 
@@ -429,32 +432,37 @@ Paginated endpoints return `{ "data": { "items": [...], "pagination": { "page", 
 
 ### Requests
 
-| Method | Endpoint                | Access                               | Description                              |
-| ------ | ----------------------- | ------------------------------------ | ---------------------------------------- |
-| POST   | `/requests`             | Society                              | Create request (draft or submit)         |
-| GET    | `/requests`             | Society, admin                       | List requests, filter by status/category |
-| GET    | `/requests/:id`         | Society owner, invited vendor, admin | Request detail (field-level privacy)     |
-| PATCH  | `/requests/:id`         | Society owner                        | Edit while editable                      |
-| POST   | `/requests/:id/submit`  | Society owner                        | Validate and distribute                  |
-| POST   | `/requests/:id/cancel`  | Society owner, admin                 | Cancel with reason                       |
-| POST   | `/requests/:id/close`   | Society owner, admin                 | Close an active or completed request     |
-| GET    | `/requests/:id/vendors` | Society owner, admin                 | Distribution record                      |
-| GET    | `/vendor/requests`      | Vendor                               | Eligible open requests                   |
+| Method | Endpoint                      | Access                               | Description                              |
+| ------ | ----------------------------- | ------------------------------------ | ---------------------------------------- |
+| POST   | `/requests`                   | Society                              | Create request (draft or submit)         |
+| GET    | `/requests`                   | Society, admin                       | List requests, filter by status/category |
+| GET    | `/requests/:id`               | Society owner, invited vendor, admin | Request detail (field-level privacy)     |
+| PATCH  | `/requests/:id`               | Society owner                        | Edit while editable                      |
+| POST   | `/requests/:id/submit`        | Society owner                        | Validate and distribute                  |
+| POST   | `/requests/:id/cancel`        | Society owner, admin                 | Cancel with reason                       |
+| POST   | `/requests/:id/close`         | Society owner, admin                 | Close an active or completed request     |
+| POST   | `/requests/:id/close-quoting` | Society owner                        | Move to `quoted` review state            |
+| POST   | `/requests/:id/complete`      | Society owner                        | Mark a selected request `completed`      |
+| GET    | `/requests/:id/compare`       | Society owner, admin                 | Normalised side-by-side comparison       |
+| GET    | `/requests/:id/vendors`       | Society owner, admin                 | Distribution record                      |
+| GET    | `/vendor/requests`            | Vendor                               | Eligible open requests                   |
 
 ### Quotations
 
 Implemented:
 
-| Method | Endpoint                        | Access                   | Description                            |
-| ------ | ------------------------------- | ------------------------ | -------------------------------------- |
-| POST   | `/requests/:id/quotations`      | Invited, verified vendor | Create or update own quotation         |
-| GET    | `/requests/:id/quotations/mine` | Vendor                   | Own quotation for a request, or `null` |
-| GET    | `/requests/:id/quotations`      | Society owner, admin     | Paginated quotations for review        |
+| Method | Endpoint                                       | Access                   | Description                            |
+| ------ | ---------------------------------------------- | ------------------------ | -------------------------------------- |
+| POST   | `/requests/:id/quotations`                     | Invited, verified vendor | Create or update own quotation         |
+| GET    | `/requests/:id/quotations/mine`                | Vendor                   | Own quotation for a request, or `null` |
+| GET    | `/requests/:id/quotations`                     | Society owner, admin     | Paginated quotations for review        |
+| POST   | `/requests/:id/quotations/:quotationId/prefer` | Society owner            | Mark one offer as preferred            |
+| POST   | `/requests/:id/quotations/:quotationId/select` | Society owner            | Select one offer and demote the others |
+| POST   | `/quotations/:id/withdraw`                     | Owning vendor            | Withdraw an offer before selection     |
+| GET    | `/quotations/mine`                             | Vendor                   | Paginated list of own quotations       |
 
-Planned, not shipped yet: `GET /quotations`, `GET /quotations/:id`,
-`PATCH /quotations/:id`, `POST /quotations/:id/withdraw`,
-`POST /quotations/:id/prefer`, `POST /quotations/:id/select` and
-`GET /requests/:id/compare`.
+Planned, not shipped yet: `GET /quotations`, `GET /quotations/:id` and `PATCH /quotations/:id`.
+`GET /requests/:id/compare` is implemented and is used by the React comparison table.
 
 ### Reviews (P1)
 
@@ -556,7 +564,7 @@ draft ──▶ submitted ──▶ open ──┬──▶ partially_quoted ─
 | `draft`            | Saved, not distributed           | `submitted`, `cancelled`                            |
 | `submitted`        | Validated, awaiting distribution | `open`, `cancelled`                                 |
 | `open`             | Visible to eligible vendors      | `partially_quoted`, `quoted`, `closed`, `cancelled` |
-| `partially_quoted` | ≥1 quotation, window still open  | `quoted`, `closed`, `cancelled`                     |
+| `partially_quoted` | ≥1 quotation, window still open  | `quoted`, `selected`, `closed`, `cancelled`         |
 | `quoted`           | Quotations available for review  | `selected`, `closed`, `cancelled`                   |
 | `selected`         | A quotation is chosen            | `completed`, `cancelled` (admin)                    |
 | `completed`        | Engagement recorded complete     | `closed`                                            |
@@ -590,8 +598,10 @@ verified ──▶ deactivated
 - `verified` is never shown unless an admin recorded the decision (BR-004).
 - Selection never implies university approval (BR-008); the UI must say so.
 
-> Selection, preference, withdrawal and expiry handling are still planned. The shipped flow
-> stops at submission/editing, society review and notifications.
+> Selection, preference and withdrawal are implemented inside a single locked transaction.
+> Society-owned endpoints move requests to `quoted` and then `completed`; quotations whose
+> `validUntil` has passed are expired lazily on the next read or lifecycle write. Reviews require
+> a `completed` request.
 
 ---
 
@@ -739,17 +749,13 @@ REFRESH_EXPIRES_IN=7d
 COOKIE_DOMAIN=localhost
 COOKIE_SECURE=false
 
-BCRYPT_OR_ARGON_MEMORY_KIB=19456
 RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX=100
+RATE_LIMIT_MAX=300
 LOG_LEVEL=info
 ```
 
-`apps/web/.env`
-
-```ini
-VITE_API_BASE_URL=http://localhost:4000/api/v1
-```
+The web app needs no environment file: it calls the relative `/api/v1` path, which Vite proxies
+to the API in development and Vercel rewrites to the API project in production.
 
 **Rules:** never commit `.env`; keep secrets out of the client bundle (`VITE_*` is public); rotate `JWT_SECRET` on any suspected leak.
 
@@ -757,24 +763,24 @@ VITE_API_BASE_URL=http://localhost:4000/api/v1
 
 ## 14. Available Scripts
 
-| Command                | Description                                      |
-| ---------------------- | ------------------------------------------------ |
-| `npm run dev`          | Run web + API concurrently                       |
-| `npm run dev:web`      | Vite dev server only                             |
-| `npm run dev:api`      | Express with watch mode                          |
-| `npm run build`        | Build shared package, compile API and bundle web |
-| `npm run start`        | Run the compiled API (`apps/api/dist`)           |
-| `npm run lint`         | ESLint across the repo                           |
-| `npm run format`       | Prettier write                                   |
-| `npm run format:check` | Prettier check (CI)                              |
-| `npm run typecheck`    | `tsc --noEmit` for all packages                  |
-| `npm test`             | Run API unit and integration tests               |
-| `npm run test:e2e`     | Playwright suite (added in stage 9)              |
-| `npm run db:generate`  | Generate a migration from schema changes         |
-| `npm run db:migrate`   | Apply pending migrations using `DIRECT_URL`      |
-| `npm run db:seed`      | Insert demo accounts, categories and sample data |
-| `npm run db:reset`     | Drop schemas, re-migrate and re-seed (dev only)  |
-| `npm run db:studio`    | Open Drizzle Studio                              |
+| Command                | Description                                         |
+| ---------------------- | --------------------------------------------------- |
+| `npm run dev`          | Run web + API concurrently                          |
+| `npm run dev:web`      | Vite dev server only                                |
+| `npm run dev:api`      | Express with watch mode                             |
+| `npm run build`        | Build shared package, compile API and bundle web    |
+| `npm run start`        | Run the compiled API (`apps/api/dist`)              |
+| `npm run lint`         | ESLint across the repo                              |
+| `npm run format`       | Prettier write                                      |
+| `npm run format:check` | Prettier check (CI)                                 |
+| `npm run typecheck`    | `tsc --noEmit` for all packages                     |
+| `npm test`             | Run API unit/integration and web component tests    |
+| `npm run test:e2e`     | Run Playwright browser tests against `vite preview` |
+| `npm run db:generate`  | Generate a migration from schema changes            |
+| `npm run db:migrate`   | Apply pending migrations using `DIRECT_URL`         |
+| `npm run db:seed`      | Insert demo accounts, categories and sample data    |
+| `npm run db:reset`     | Drop schemas, re-migrate and re-seed (dev only)     |
+| `npm run db:studio`    | Open Drizzle Studio                                 |
 
 A Husky pre-commit hook runs `lint-staged`, which applies ESLint fixes and Prettier to staged files.
 
@@ -782,47 +788,56 @@ A Husky pre-commit hook runs `lint-staged`, which applies ESLint fixes and Prett
 
 ## 15. Testing
 
-| Level                | Tool                        | What it covers                                                                                  |
-| -------------------- | --------------------------- | ----------------------------------------------------------------------------------------------- |
-| Unit                 | Vitest                      | Password hashing, Zod schemas, status transition guards, matching rules                         |
-| Database integration | Vitest + PGlite             | Applies the real migration to PostgreSQL-in-WASM and checks tables, enums, keys and constraints |
-| API integration      | Vitest + Supertest + PGlite | Register, login, refresh rotation, logout, `/auth/me`, duplicate and suspended-account paths    |
-| Component            | React Testing Library       | Forms, validation messages, status badges                                                       |
-| End-to-end           | Playwright                  | Full society → vendor → select journey                                                          |
-| Security             | Manual + automated          | Cross-account access, IDOR, injection, rate limits                                              |
+| Level                | Tool                        | What it covers                                                                                                      |
+| -------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Unit                 | Vitest                      | Password hashing, shared Zod schemas, status transition guards                                                      |
+| Database integration | Vitest + PGlite             | Applies all migrations to PostgreSQL-in-WASM and checks tables, enums, keys and constraints                         |
+| API integration      | Vitest + Supertest + PGlite | Auth, refresh-family revocation, logout, duplicate/suspended paths, quotation lifecycle, privacy and security cases |
+| Component            | Vitest + Testing Library    | Comparison table, vendor selection, review form and society lifecycle actions                                       |
+| End-to-end           | Playwright                  | Landing-to-directory navigation and society sign-in → quotation comparison (mocked API, no database needed)         |
+
+Automated rate-limit checks in `apps/api/tests/rate-limit.integration.test.ts` and
+`auth-rate-limit.integration.test.ts` verify both the broad API limiter and the tighter credential
+limiter. Run `npm run test:e2e` for the Playwright suite after `npx playwright install chromium`.
 
 **Mandatory security test cases (from SRS §15.3)**
 
-- `TC-005` — negative quotation price is rejected server-side.
-- `TC-006` — quotation on a closed request is rejected.
-- `TC-007` — Society A cannot open Society B's request by changing the URL id.
-- `TC-008` — Vendor A cannot view Vendor B's quotation.
-- `TC-014` — a non-admin user cannot reach any `/admin/*` endpoint.
+All five mandatory cases are automated in `apps/api/tests/security.integration.test.ts` (and the
+existing quotation suite):
+
+- `TC-005` — negative quotation price is rejected by the Zod schema before any database write.
+- `TC-006` — a quotation update on a `closed` request returns `409 CONFLICT`.
+- `TC-007` — Society A cannot read Society B's request detail (`404`) or select its quotations.
+- `TC-008` — Vendor A gets `403` for the society quotation list/comparison endpoints and only its
+  own quotation from `/quotations/mine`.
+- `TC-014` — society and vendor tokens get `403` on every read and write route under `/admin/*`,
+  while an admin token succeeds.
 
 Run the suite:
 
 ```bash
-npm test
-npm run test:e2e
+npm test                 # API + component suites (68 tests)
+npx playwright install chromium   # once per machine
+npm run test:e2e         # 2 browser tests; starts vite preview automatically
 ```
 
 ---
 
 ## 16. Security
 
-| Area          | Control                                                                                 |
-| ------------- | --------------------------------------------------------------------------------------- |
-| Passwords     | argon2id (or bcrypt cost ≥ 12); never stored or logged in plaintext                     |
-| Sessions      | Short-lived access JWT + rotating refresh token stored hashed, httpOnly/SameSite cookie |
-| Authorization | Server-side middleware on every protected route; ownership resolved from DB             |
-| Input         | Zod schema validation on every endpoint; parameterised SQL only                         |
-| Transport     | HTTPS enforced in production; secure cookies                                            |
-| Headers       | `helmet`, strict CORS allow-list                                                        |
-| Abuse         | Rate limits on auth, request creation and uploads; duplicate-click protection           |
-| Uploads       | Type + size allow-list, generated filenames, stored outside the app path                |
-| Privacy       | Field-level response shaping so contact details never leak to uninvited vendors         |
-| Audit         | Admin approvals, suspensions, cancellations and selections written to `audit_logs`      |
-| Logging       | Structured logs with request ids; passwords, tokens and PII redacted                    |
+| Area          | Control                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| Passwords     | argon2id (or bcrypt cost ≥ 12); never stored or logged in plaintext                                  |
+| Sessions      | Access JWT held in memory only; hashed rotating refresh cookie; token reuse revokes the whole family |
+| Authorization | Server-side middleware on every protected route; ownership resolved from DB                          |
+| Input         | Zod schema validation on every endpoint; parameterised SQL only                                      |
+| Transport     | HTTPS enforced in production; secure cookies                                                         |
+| Headers       | `helmet`, strict CORS allow-list                                                                     |
+| Abuse         | Rate limits on auth, request creation and uploads; duplicate-click protection                        |
+| Uploads       | Server-side data-URL/MIME and decoded-size allow-list; up to 8 images per vendor                     |
+| Privacy       | Field-level response shaping so contact details never leak to uninvited vendors                      |
+| Audit         | Admin approvals, suspensions, cancellations and selections written to `audit_logs`                   |
+| Logging       | Structured logs with request ids; passwords, tokens and PII redacted                                 |
 
 **Never** treat a hidden button as access control, and never trust an id from the browser as proof of ownership (NFR-010, §12.3).
 
@@ -830,17 +845,18 @@ npm run test:e2e
 
 ## 17. Deployment
 
-| Component        | Host                | Notes                                                                                   |
-| ---------------- | ------------------- | --------------------------------------------------------------------------------------- |
-| Web (static SPA) | Vercel Hobby (free) | Root Directory `apps/web`; `api/[...path].js` proxies `/api` and rewrites client routes |
-| API              | Vercel Hobby (free) | Root Directory `apps/api`; Node 22 Express function, health check `/health`             |
-| Database         | Neon Free           | Use the pooled URL for the API; run migrations with the direct URL                      |
+| Component        | Host                | Notes                                                                                                      |
+| ---------------- | ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Web (static SPA) | Vercel Hobby (free) | Root Directory `apps/web`; set `API_ORIGIN` for external rewrites, client routes fall back to `index.html` |
+| API              | Vercel Hobby (free) | Root Directory `apps/api`; Node 22 Express function, health check `/health`                                |
+| Database         | Neon Free           | Use the pooled URL for the API; run migrations with the direct URL                                         |
 
 See [docs/deployment.md](docs/deployment.md) for the exact free-tier setup steps.
 
 **Production checklist**
 
 - [ ] `NODE_ENV=production`, `COOKIE_SECURE=true`, correct `APP_ORIGIN`
+- [ ] Web project's `API_ORIGIN` points at the deployed API (read by `apps/web/vercel.ts` at build time)
 - [ ] Secrets set in the host's secret manager (not in the repo)
 - [ ] Migrations applied before the new API version starts
 - [ ] CORS restricted to the deployed web origin
@@ -988,16 +1004,23 @@ Build in this sequence. Steps are numbered **1 → 65**; complete each one befor
 | 39  | Notification + audit on every quotation event                                         | Trust and accountability                 |
 
 **Shipped from Stage 5:** quotation creation/update, own-quotation lookup, society quotation
-listing, `open → partially_quoted`, and notification + audit rows on submit/update. Tasks 35
-(quotation detail/withdraw), 37 (compare payload) and 38 (prefer/select) are still planned.
+listing, `open → partially_quoted`, withdraw, prefer/select in one locked transaction, partial
+unique indexes for selected/preferred offers, and notification + audit rows on submit/update,
+selection and withdrawal. Task 35 (quotation detail endpoints) remains open.
 
-**Milestone 1 — the backend MVP is complete here.** Every FR-001–FR-096 path now exists via the API.
+**Shipped in the lifecycle follow-up:** `POST /requests/:id/close-quoting` (`quoted`),
+`POST /requests/:id/complete` (`completed`), server-generated `GET /requests/:id/compare`, lazy
+quotation expiry, completed-only reviews, refresh-token family revocation and hardened portfolio
+upload validation.
+
+**Milestone 1 — the backend MVP is complete here.** Every core society → vendor → compare →
+select → complete → review path exists via the API.
 
 ### Stage 6 — Frontend foundation
 
 | #   | Build                                                                                    | Why it comes here                         |
 | --- | ---------------------------------------------------------------------------------------- | ----------------------------------------- |
-| 40  | Vite app + Tailwind + router + QueryClient provider                                      | Shell before screens                      |
+| 40  | Vite app + Tailwind + router + auth provider                                             | Shell before screens                      |
 | 41  | API client: base URL, token handling, refresh-on-401, error normalisation                | Every screen depends on it                |
 | 42  | Auth context + protected routes + role guards                                            | Stops building screens users can't reach  |
 | 43  | Layouts: public, society, vendor, admin + navigation                                     | Visual consistency                        |
@@ -1052,4 +1075,6 @@ listing, `open → partially_quoted`, and notification + audit rows on submit/up
 
 **License:** Academic project — not licensed for commercial use without the team's permission.
 
-**Status:** stages 0–4 implemented, plus the quotation submission/review and notification slice of Stage 5. Verified with typecheck, lint, build and 36/36 tests. Selection, preference and comparison remain planned — see the [build order](#21-build-order).
+**Status:** stages 0–8 implemented except multiple society representatives, payments and analytics.
+Verified with typecheck, lint, build, format check, 68/68 Vitest tests and 2/2 Playwright tests — see
+the [build order](#21-build-order).

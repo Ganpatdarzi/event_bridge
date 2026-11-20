@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validateBody, validateParams } from '../../middleware/validate.js';
 import {
+  compareQuotationsHandler,
   getMyQuotation,
   listQuotations,
   preferQuotationHandler,
@@ -20,7 +21,9 @@ import {
 import { createReviewHandler } from '../reviews/reviews.controller.js';
 import {
   cancelRequest,
+  closeQuoting,
   closeRequest,
+  completeRequest,
   createRequest,
   getRequest,
   getRequestVendors,
@@ -79,6 +82,12 @@ requestsRouter.get(
   validateParams(idParams),
   listQuotations,
 );
+requestsRouter.get(
+  '/:id/compare',
+  authorize('society', 'admin'),
+  validateParams(idParams),
+  compareQuotationsHandler,
+);
 requestsRouter.post(
   '/:id/quotations/:quotationId/select',
   authorize('society'),
@@ -90,6 +99,18 @@ requestsRouter.post(
   authorize('society'),
   validateParams(quotationParams),
   preferQuotationHandler,
+);
+requestsRouter.post(
+  '/:id/close-quoting',
+  authorize('society'),
+  validateParams(idParams),
+  closeQuoting,
+);
+requestsRouter.post(
+  '/:id/complete',
+  authorize('society'),
+  validateParams(idParams),
+  completeRequest,
 );
 requestsRouter.post(
   '/:id/review',

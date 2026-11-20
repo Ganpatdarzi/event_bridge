@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, type RequestQuotationsPage } from '../lib/api.js';
+import { api, type QuotationComparison, type RequestQuotationsPage } from '../lib/api.js';
 import { useApiQuery } from '../lib/use-api.js';
 import { formatDate, formatDateTime, formatMoney, humanize } from '../lib/format.js';
 import { Alert, Badge, buttonStyles, StatusBadge } from './ui.js';
@@ -17,8 +17,13 @@ export function RequestApplications({
     () => api<RequestQuotationsPage>(`/requests/${requestId}/quotations?pageSize=50`),
     [requestId],
   );
+  const comparison = useApiQuery(
+    () => api<QuotationComparison>(`/requests/${requestId}/compare`),
+    [requestId],
+  );
 
   const items = quotations.data?.items ?? [];
+  const comparisonItems = comparison.data?.items ?? [];
   const [compare, setCompare] = useState(false);
   const [selecting, setSelecting] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -30,6 +35,7 @@ export function RequestApplications({
       await api(`/requests/${requestId}/quotations/${quotationId}/select`, { method: 'POST' });
       setNotice('Vendor selected. The request is now marked as selected.');
       quotations.reload();
+      comparison.reload();
       onSelect?.();
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : 'Unable to select this vendor');
@@ -57,7 +63,7 @@ export function RequestApplications({
         </div>
       )}
 
-      {items.length > 1 && (
+      {comparisonItems.length > 1 && (
         <div className="mt-3">
           <button
             type="button"
@@ -72,26 +78,28 @@ export function RequestApplications({
                 <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-3 py-2 text-left">Vendor</th>
-                    <th className="px-3 py-2 text-right">Total</th>
+                    <th className="px-3 py-2 text-right">Base</th>
                     <th className="px-3 py-2 text-right">Extras</th>
+                    <th className="px-3 py-2 text-right">With extras</th>
                     <th className="px-3 py-2 text-left">Available</th>
                     <th className="px-3 py-2 text-left">Valid until</th>
                     <th className="px-3 py-2 text-left">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((quote) => (
-                    <tr key={quote.id} className="border-t border-slate-100">
+                  {comparisonItems.map((quote) => (
+                    <tr key={quote.quotationId} className="border-t border-slate-100">
                       <td className="px-3 py-2 font-medium text-slate-900">
                         {quote.vendor.businessName}
                       </td>
-                      <td className="px-3 py-2 text-right font-semibold">
-                        {formatMoney(quote.totalPrice)}
-                      </td>
+                      <td className="px-3 py-2 text-right">{formatMoney(quote.totalPrice)}</td>
                       <td className="px-3 py-2 text-right">
                         {quote.additionalCharges === null
                           ? '—'
                           : formatMoney(quote.additionalCharges)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {formatMoney(quote.totalWithExtras)}
                       </td>
                       <td className="px-3 py-2">
                         {quote.availableOnDate === null
@@ -109,9 +117,34 @@ export function RequestApplications({
                     </tr>
                   ))}
                 </tbody>
+                {comparison.data?.summary && (
+                  <tfoot className="bg-slate-50 text-xs text-slate-600">
+                    <tr>
+                      <td className="px-3 py-2 font-semibold" colSpan={3}>
+                        {comparison.data.summary.count} comparable quotations
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold">
+                        {comparison.data.summary.lowestTotal === null
+                          ? '—'
+                          : `${formatMoney(comparison.data.summary.lowestTotal)} – ${formatMoney(
+                              comparison.data.summary.highestTotal ?? 0,
+                            )}`}
+                      </td>
+                      <td className="px-3 py-2" colSpan={3}>
+                        Average {formatMoney(comparison.data.summary.averageTotal ?? 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {comparison.error && (
+        <div className="mt-3">
+          <Alert tone="error">Comparison unavailable: {comparison.error}</Alert>
         </div>
       )}
 

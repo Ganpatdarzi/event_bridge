@@ -48,5 +48,6 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'quotation_selected',
   'quotation_rejected',
   'request_closed',
+  'request_completed',
   'vendor_status',
 ]);

@@ -45,6 +45,14 @@ export const quotations = pgTable(
     uniqueIndex('quotations_request_vendor_uq').on(table.requestId, table.vendorId),
     index('idx_quotations_request').on(table.requestId, table.status),
     index('idx_quotations_vendor').on(table.vendorId, table.submittedAt),
+    // A request has at most one selected and one preferred offer, even if a
+    // service-layer race slips through.
+    uniqueIndex('idx_quotations_one_selected_per_request')
+      .on(table.requestId)
+      .where(sql`${table.status} = 'selected'`),
+    uniqueIndex('idx_quotations_one_preferred_per_request')
+      .on(table.requestId)
+      .where(sql`${table.status} = 'preferred'`),
     check('quotations_total_price_check', sql`${table.totalPrice} >= 0`),
     check(
       'quotations_additional_charges_check',

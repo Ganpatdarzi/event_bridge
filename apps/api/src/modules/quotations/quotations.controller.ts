@@ -4,6 +4,7 @@ import { AppError } from '../../lib/errors.js';
 import { parsePagination } from '../../lib/pagination.js';
 import {
   getMyQuotation as getMyQuotationService,
+  getQuotationComparison,
   listMyQuotations,
   listRequestQuotations,
   preferQuotation,
@@ -37,6 +38,13 @@ export const listQuotations: RequestHandler = async (req, res) => {
   const page = parsePagination(req.query);
   const result = await listRequestQuotations(req.user, req.params.id as string, page);
   res.json({ data: result });
+};
+
+export const compareQuotationsHandler: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+
+  const comparison = await getQuotationComparison(req.user, req.params.id as string);
+  res.json({ data: comparison });
 };
 
 export const selectQuotationHandler: RequestHandler = async (req, res) => {

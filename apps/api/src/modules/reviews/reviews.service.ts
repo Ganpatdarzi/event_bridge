@@ -35,7 +35,7 @@ export async function createReview(
   if (!request) throw AppError.notFound('Request not found');
   if (request.societyUserId !== userId) throw AppError.notFound('Request not found');
 
-  if (!['selected', 'completed'].includes(request.status)) {
+  if (request.status !== 'completed') {
     throw AppError.conflict('CONFLICT', 'Reviews can only be submitted for completed engagements');
   }
 
@@ -62,19 +62,22 @@ export async function createReview(
   }
 
   await db.transaction(async (tx) => {
-    await tx.insert(reviews).values({
-      societyId: request.societyId,
-      vendorId: selected.vendorId,
-      requestId,
-      rating: input.rating,
-      comment: input.comment ?? null,
-    });
+    const [created] = await tx
+      .insert(reviews)
+      .values({
+        societyId: request.societyId,
+        vendorId: selected.vendorId,
+        requestId,
+        rating: input.rating,
+        comment: input.comment ?? null,
+      })
+      .returning({ id: reviews.id });
 
     await writeAuditTx(tx, {
       actorId: userId,
       action: 'review.created',
       targetType: 'review',
-      targetId: null,
+      targetId: created?.id ?? null,
       metadata: { requestId, rating: input.rating },
     });
   });

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."notification_type" ADD VALUE 'request_completed' BEFORE 'vendor_status';
