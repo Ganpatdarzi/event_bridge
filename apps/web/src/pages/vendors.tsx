@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, type Category, type Paginated, type VendorSummary } from '../lib/api.js';
 import { useApiQuery } from '../lib/use-api.js';
 import {
@@ -24,9 +24,20 @@ interface Filters {
 const emptyFilters: Filters = { search: '', city: '', category: '' };
 
 export function VendorsPage() {
-  const [form, setForm] = useState<Filters>(emptyFilters);
-  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoryFromUrl = searchParams.get('category') ?? '';
+  const [form, setForm] = useState<Filters>({ ...emptyFilters, category: categoryFromUrl });
+  const [filters, setFilters] = useState<Filters>({ ...emptyFilters, category: categoryFromUrl });
   const [page, setPage] = useState(1);
+
+  // Keep the directory in sync with links such as /vendors?category=catering,
+  // including browser back/forward navigation.
+  useEffect(() => {
+    const category = searchParams.get('category') ?? '';
+    setForm((current) => (current.category === category ? current : { ...current, category }));
+    setFilters((current) => (current.category === category ? current : { ...current, category }));
+    setPage(1);
+  }, [searchParams]);
 
   const categories = useApiQuery(() => api<Category[]>('/categories', { auth: false }), []);
 
@@ -44,12 +55,19 @@ export function VendorsPage() {
     event.preventDefault();
     setPage(1);
     setFilters(form);
+
+    const next = new URLSearchParams();
+    if (form.search) next.set('search', form.search);
+    if (form.city) next.set('city', form.city);
+    if (form.category) next.set('category', form.category);
+    setSearchParams(next, { replace: true });
   }
 
   function reset() {
     setForm(emptyFilters);
     setFilters(emptyFilters);
     setPage(1);
+    setSearchParams(new URLSearchParams(), { replace: true });
   }
 
   const pagination = vendors.data?.pagination;

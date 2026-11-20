@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { uuidSchema } from './common.js';
+import { numericInput, uuidSchema } from './common.js';
 
 const MAX_MONEY = 9_999_999_999.99;
 
@@ -10,17 +10,20 @@ function emptyToNull(value: unknown): unknown {
 
 const nullableMoneySchema = z.preprocess(
   emptyToNull,
-  z.coerce
-    .number({ message: 'Enter a valid amount' })
-    .finite()
-    .min(0, 'Amount cannot be negative')
-    .max(MAX_MONEY)
+  numericInput
+    .pipe(
+      z
+        .number({ message: 'Enter a valid amount' })
+        .finite()
+        .min(0, 'Amount cannot be negative')
+        .max(MAX_MONEY),
+    )
     .nullable(),
 );
 
 const nullableIntegerSchema = z.preprocess(
   emptyToNull,
-  z.coerce.number().int().min(1).max(1_000_000).nullable(),
+  numericInput.pipe(z.number().int().min(1).max(1_000_000)).nullable(),
 );
 
 const nullableDateTimeSchema = z.preprocess(
@@ -32,7 +35,7 @@ export const eventCreateSchema = z.object({
   name: z.string().trim().min(3, 'Event name is required').max(180),
   eventDate: z.iso.date({ message: 'Enter a valid event date (YYYY-MM-DD)' }),
   location: z.string().trim().min(3, 'Event location is required').max(240),
-  expectedAttendance: z.coerce.number().int().min(1).max(1_000_000).optional(),
+  expectedAttendance: numericInput.pipe(z.number().int().min(1).max(1_000_000)).optional(),
 });
 
 export const eventUpdateSchema = eventCreateSchema
@@ -53,7 +56,7 @@ const requestCreateBaseSchema = z.object({
     .max(5000),
   budgetMin: nullableMoneySchema.optional(),
   budgetMax: nullableMoneySchema.optional(),
-  quantity: z.coerce.number().int().min(1).max(1_000_000).optional(),
+  quantity: numericInput.pipe(z.number().int().min(1).max(1_000_000)).optional(),
   responseDeadline: nullableDateTimeSchema.optional(),
   submit: z.boolean().default(false),
 });

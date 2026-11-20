@@ -30,7 +30,9 @@ export function createApp(): express.Express {
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     }),
   );
-  app.use(express.json({ limit: '1mb' }));
+  // Portfolio images are sent as data URLs (up to ~3 MB), so allow enough room
+  // while staying below Vercel's 4.5 MB function body limit.
+  app.use(express.json({ limit: '4mb' }));
   app.use(cookieParser());
   app.use(
     pinoHttp({

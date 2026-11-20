@@ -81,13 +81,13 @@ requestsRouter.get(
 );
 requestsRouter.post(
   '/:id/quotations/:quotationId/select',
-  authorize('society', 'admin'),
+  authorize('society'),
   validateParams(quotationParams),
   selectQuotationHandler,
 );
 requestsRouter.post(
   '/:id/quotations/:quotationId/prefer',
-  authorize('society', 'admin'),
+  authorize('society'),
   validateParams(quotationParams),
   preferQuotationHandler,
 );

@@ -10,7 +10,8 @@ import { logger } from '../config/logger.js';
  * connections are for the application runtime only.
  */
 export async function runMigrations(): Promise<void> {
-  const connectionString = env.DIRECT_URL ?? env.DATABASE_URL;
+  // Use `||` so an empty DIRECT_URL cannot produce a bogus connection string.
+  const connectionString = env.DIRECT_URL || env.DATABASE_URL;
   const needsSsl =
     connectionString.includes('sslmode=require') || connectionString.includes('neon.tech');
 

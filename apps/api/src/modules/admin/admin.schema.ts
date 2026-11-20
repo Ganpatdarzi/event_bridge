@@ -32,7 +32,10 @@ export const auditLogQuerySchema = z
   });
 
 export const adminReviewQuerySchema = z.object({
-  hidden: z.coerce.boolean().optional(),
+  hidden: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
   vendorId: uuidSchema.optional(),
   search: z.string().trim().min(1).max(120).optional(),
 });

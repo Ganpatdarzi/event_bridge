@@ -16,9 +16,21 @@ export const passwordSchema = z
 
 export const uuidSchema = z.uuid({ message: 'Invalid identifier' });
 
+/**
+ * Accepts numbers and numeric strings (query params) but rejects booleans,
+ * which `z.coerce.number()` silently turns into 1 / 0.
+ */
+export const numericInput = z.preprocess((value) => {
+  if (typeof value === 'string' && value.trim() !== '') {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return value;
+}, z.number());
+
 export const paginationSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  page: numericInput.pipe(z.number().int().min(1)).default(1),
+  pageSize: numericInput.pipe(z.number().int().min(1).max(100)).default(20),
 });
 
 export type Pagination = z.infer<typeof paginationSchema>;

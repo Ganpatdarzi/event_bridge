@@ -17,6 +17,7 @@ import {
 import { DEFAULT_CATEGORIES } from '@event-bridge/shared';
 import { hashPassword } from '../lib/password.js';
 import { logger } from '../config/logger.js';
+import { isProduction } from '../config/env.js';
 
 const SEED_REQUEST_REFERENCE = 'EB-R-SEED01';
 
@@ -39,6 +40,10 @@ async function ensureCategories(): Promise<Map<string, string>> {
 }
 
 export async function seed(): Promise<void> {
+  if (isProduction) {
+    throw new Error('Refusing to seed a production database');
+  }
+
   logger.info('Seeding development data');
 
   const categoryIds = await ensureCategories();

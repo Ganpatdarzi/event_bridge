@@ -54,6 +54,17 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
     return;
   }
 
+  // body-parser reports oversized JSON as 413; do not turn it into a 500.
+  if (
+    (error as { status?: number }).status === 413 ||
+    (error as { type?: string }).type === 'entity.too.large'
+  ) {
+    res.status(413).json({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'The request body is too large' },
+    });
+    return;
+  }
+
   // Malformed JSON bodies surface as SyntaxError with a status property.
   if (
     error instanceof SyntaxError &&

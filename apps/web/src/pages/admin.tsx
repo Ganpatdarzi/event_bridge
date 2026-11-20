@@ -501,10 +501,10 @@ function VendorsSection() {
                   className={buttonStyles('secondary', 'sm')}
                   disabled={busy !== null}
                   onClick={() =>
-                    void review(vendor, 'request_changes', 'Please update your profile.')
+                    void review(vendor, 'request-changes', 'Please update your profile.')
                   }
                 >
-                  {busy === `request_changes-${vendor.id}` ? '…' : 'Request changes'}
+                  {busy === `request-changes-${vendor.id}` ? '…' : 'Request changes'}
                 </button>
                 <button
                   type="button"

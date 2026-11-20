@@ -221,40 +221,50 @@ export async function rotateRefreshToken(
 ): Promise<{ session: Session; tokens: SessionTokens }> {
   const tokenHash = hashToken(rawToken);
 
-  const [stored] = await db
-    .select()
-    .from(refreshTokens)
-    .where(
-      and(
-        eq(refreshTokens.tokenHash, tokenHash),
-        isNull(refreshTokens.revokedAt),
-        gt(refreshTokens.expiresAt, new Date()),
-      ),
-    )
-    .limit(1);
-
-  if (!stored) {
-    throw AppError.unauthenticated('Your session has expired. Please sign in again.');
-  }
-
-  const [user] = await db.select().from(users).where(eq(users.id, stored.userId)).limit(1);
-
-  if (!user || user.status !== 'active') {
-    await db
+  // Atomically consume the presented token. A single UPDATE ... RETURNING
+  // ensures two concurrent refreshes cannot both mint a replacement session.
+  const rotated = await db.transaction(async (tx) => {
+    const [stored] = await tx
       .update(refreshTokens)
       .set({ revokedAt: new Date() })
-      .where(eq(refreshTokens.id, stored.id));
-    throw AppError.unauthenticated('Your session is no longer valid.');
-  }
+      .where(
+        and(
+          eq(refreshTokens.tokenHash, tokenHash),
+          isNull(refreshTokens.revokedAt),
+          gt(refreshTokens.expiresAt, new Date()),
+        ),
+      )
+      .returning();
 
-  // Rotate: revoke the presented token, then issue a fresh pair.
-  await db
-    .update(refreshTokens)
-    .set({ revokedAt: new Date() })
-    .where(eq(refreshTokens.id, stored.id));
+    if (!stored) {
+      throw AppError.unauthenticated('Your session has expired. Please sign in again.');
+    }
 
-  const tokens = await issueTokens(user.id, user.role, meta);
-  const session = await buildSession(user.id);
+    const [user] = await tx.select().from(users).where(eq(users.id, stored.userId)).limit(1);
+    if (!user || user.status !== 'active') {
+      throw AppError.unauthenticated('Your session is no longer valid.');
+    }
+
+    const refreshToken = generateRefreshToken();
+    const refreshExpiresAt = new Date(Date.now() + refreshTokenTtlMs);
+
+    await tx.insert(refreshTokens).values({
+      userId: user.id,
+      tokenHash: hashToken(refreshToken),
+      expiresAt: refreshExpiresAt,
+      userAgent: meta.userAgent ?? null,
+      ip: meta.ip ?? null,
+    });
+
+    return { user, refreshToken, refreshExpiresAt };
+  });
+
+  const tokens = {
+    accessToken: signAccessToken(rotated.user.id, rotated.user.role),
+    refreshToken: rotated.refreshToken,
+    refreshExpiresAt: rotated.refreshExpiresAt,
+  };
+  const session = await buildSession(rotated.user.id);
 
   return { session, tokens };
 }

@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import { numericInput } from './common.js';
 
 export const reviewCreateSchema = z.object({
-  rating: z.coerce.number().int().min(1).max(5),
+  rating: numericInput.pipe(z.number().int().min(1).max(5)),
   comment: z.string().trim().max(2000).optional(),
 });
 

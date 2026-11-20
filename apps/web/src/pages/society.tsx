@@ -511,6 +511,22 @@ function CreateRequestForm({
       return;
     }
 
+    if (submit) {
+      if (!deadline) {
+        setError('Set a quotation deadline before publishing.');
+        return;
+      }
+      const deadlineDate = new Date(deadline);
+      if (Number.isNaN(deadlineDate.getTime()) || deadlineDate.getTime() <= Date.now()) {
+        setError('The quotation deadline must be in the future.');
+        return;
+      }
+      if (eventDate && deadline.slice(0, 10) > eventDate) {
+        setError('The quotation deadline cannot be after the event date.');
+        return;
+      }
+    }
+
     setSaving(submit ? 'publish' : 'draft');
     try {
       await api('/requests', {
@@ -682,7 +698,7 @@ function CreateRequestForm({
           <Field
             label="Quotation deadline"
             htmlFor="request-deadline"
-            hint="Optional. When vendors should respond by."
+            hint="Required to publish. When vendors should respond by."
           >
             <input
               id="request-deadline"

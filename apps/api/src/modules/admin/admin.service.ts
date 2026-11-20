@@ -744,6 +744,7 @@ export async function getAdminStats() {
 /* ------------------------------------------------------------------ */
 
 export interface AdminReviewFilter extends PageRequest {
+  reviewId?: string | undefined;
   hidden?: boolean | undefined;
   vendorId?: string | undefined;
   search?: string | undefined;
@@ -765,6 +766,9 @@ export async function listReviewsForAdmin(
 ): Promise<{ items: AdminReview[]; pagination: PaginationMeta }> {
   const conditions: SQL[] = [];
 
+  if (filter.reviewId) {
+    conditions.push(eq(reviews.id, filter.reviewId));
+  }
   if (filter.hidden !== undefined) {
     conditions.push(eq(reviews.isHidden, filter.hidden));
   }
@@ -866,9 +870,10 @@ export async function moderateReview(
   });
 
   const { items } = await listReviewsForAdmin({
+    reviewId,
     page: 1,
     pageSize: 1,
-    limit: 1000,
+    limit: 1,
     offset: 0,
   });
   const found = items.find((item) => item.id === reviewId);
