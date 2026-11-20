@@ -226,7 +226,7 @@ function UsersSection() {
       )}
 
       <Card className="mt-4 p-4">
-        <div className="flex flex-wrap gap-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
           <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="">All roles</option>
             <option value="society">Society</option>
@@ -247,7 +247,7 @@ function UsersSection() {
           />
           <button
             type="button"
-            className={buttonStyles('primary', 'sm')}
+            className={`${buttonStyles('primary', 'sm')} self-end justify-self-start sm:justify-self-end`}
             onClick={() => {
               setCommitted({ role, status, search });
               setPage(1);
@@ -419,7 +419,7 @@ function VendorsSection() {
       )}
 
       <Card className="mt-4 p-4">
-        <div className="flex flex-wrap gap-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
           <select className={inputClass} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All statuses</option>
             <option value="pending_review">Pending review</option>
@@ -437,7 +437,7 @@ function VendorsSection() {
           />
           <button
             type="button"
-            className={buttonStyles('primary', 'sm')}
+            className={`${buttonStyles('primary', 'sm')} self-end justify-self-start sm:justify-self-end`}
             onClick={() => {
               setCommitted({ status, search });
               setPage(1);
@@ -743,7 +743,7 @@ function RequestsSection() {
         description="Monitor every request and its applications."
       />
       <Card className="mt-4 p-4">
-        <div className="flex flex-wrap gap-3">
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <select className={inputClass} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All statuses</option>
             <option value="draft">Draft</option>
@@ -758,7 +758,7 @@ function RequestsSection() {
           </select>
           <button
             type="button"
-            className={buttonStyles('primary', 'sm')}
+            className={`${buttonStyles('primary', 'sm')} self-end justify-self-start sm:justify-self-end`}
             onClick={() => {
               setCommitted(status);
               setPage(1);
@@ -871,7 +871,7 @@ function ReviewsSection() {
       )}
 
       <Card className="mt-4 p-4">
-        <div className="flex flex-wrap gap-3">
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
           <select className={inputClass} value={hidden} onChange={(e) => setHidden(e.target.value)}>
             <option value="">All reviews</option>
             <option value="false">Visible</option>
@@ -879,7 +879,7 @@ function ReviewsSection() {
           </select>
           <button
             type="button"
-            className={buttonStyles('primary', 'sm')}
+            className={`${buttonStyles('primary', 'sm')} self-end justify-self-start sm:justify-self-end`}
             onClick={() => {
               setCommitted(hidden);
               setPage(1);

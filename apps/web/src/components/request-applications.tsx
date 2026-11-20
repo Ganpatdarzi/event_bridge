@@ -74,7 +74,7 @@ export function RequestApplications({
           </button>
           {compare && (
             <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
-              <table className="min-w-full text-sm">
+              <table className="min-w-[640px] text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-3 py-2 text-left">Vendor</th>
@@ -250,7 +250,7 @@ export function RequestApplications({
                 <span className="font-semibold text-slate-600">Contact:</span>
                 <a
                   href={`mailto:${quote.vendor.contactEmail}`}
-                  className="font-medium text-brand hover:underline"
+                  className="min-w-0 break-all font-medium text-brand hover:underline"
                 >
                   {quote.vendor.contactEmail}
                 </a>
@@ -258,7 +258,7 @@ export function RequestApplications({
                 {quote.vendor.contactPhone && (
                   <a
                     href={`tel:${quote.vendor.contactPhone}`}
-                    className="font-medium text-brand hover:underline"
+                    className="min-w-0 break-all font-medium text-brand hover:underline"
                   >
                     {quote.vendor.contactPhone}
                   </a>

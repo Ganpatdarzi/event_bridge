@@ -751,7 +751,7 @@ function CreateRequestForm({
           </Field>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="max-w-md">
           <Field
             label="Quotation deadline"
             htmlFor="request-deadline"

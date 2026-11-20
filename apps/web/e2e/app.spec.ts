@@ -242,3 +242,35 @@ test('society can sign in and compare quotations side by side', async ({ page })
   await expect(table.getByText('Vendor A Catering')).toBeVisible();
   await expect(table.getByText('Vendor B Catering')).toBeVisible();
 });
+
+test('layout and navigation adapt to the viewport', async ({ page }) => {
+  await page.goto('/');
+
+  const width = page.viewportSize()!.width;
+  await expect
+    .poll(async () => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(width + 1);
+
+  if (width < 768) {
+    await page.getByRole('button', { name: 'Open menu' }).click();
+    const mobileNav = page.getByRole('navigation', { name: 'Mobile' });
+    await expect(mobileNav).toBeVisible();
+    await expect(mobileNav.getByRole('link', { name: 'Vendors' })).toBeVisible();
+  } else {
+    const mainNav = page.getByRole('navigation', { name: 'Main' });
+    await expect(mainNav).toBeVisible();
+    await expect(mainNav.getByRole('link', { name: 'Vendors' })).toBeVisible();
+  }
+
+  await page.goto('/login');
+  if (width < 1024) {
+    const formHeading = await page.getByRole('heading', { name: 'Sign in' }).boundingBox();
+    const promoHeading = await page
+      .getByRole('heading', { name: /Welcome back to the marketplace/ })
+      .boundingBox();
+    expect(formHeading!.y).toBeLessThan(promoHeading!.y);
+  }
+  await expect
+    .poll(async () => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(width + 1);
+});

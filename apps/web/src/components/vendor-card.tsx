@@ -88,7 +88,7 @@ export function VendorCard({ vendor }: { vendor: VendorSummary }) {
                 <span className="ml-2 font-normal text-slate-500">{review.society.name}</span>
               </p>
               {review.comment && <p className="mt-1 text-xs text-slate-600">{review.comment}</p>}
-              <p className="mt-1 text-[11px] text-slate-400">{formatDate(review.createdAt)}</p>
+              <p className="mt-1 text-xs text-slate-400">{formatDate(review.createdAt)}</p>
             </div>
           ))}
         </div>

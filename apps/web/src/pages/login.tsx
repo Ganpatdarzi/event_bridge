@@ -36,8 +36,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:py-16">
-      <div className="overflow-hidden rounded-3xl bg-slate-900 p-8 text-white sm:p-10">
+    <div className="mx-auto grid max-w-5xl gap-8 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:py-16">
+      <div className="order-2 overflow-hidden rounded-3xl bg-slate-900 p-8 text-white sm:p-10 lg:order-1">
         <div className="flex items-center gap-2.5">
           <Logo className="h-9 w-9" />
           <span className="text-lg font-bold">Event Bridge</span>
@@ -54,7 +54,7 @@ export function LoginPage() {
         </ul>
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <div className="order-1 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:order-2">
         <h2 className="text-xl font-bold text-slate-900">Sign in</h2>
         <p className="mt-1 text-sm text-slate-500">
           New here?{' '}

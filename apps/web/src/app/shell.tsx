@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth.js';
 import { initials } from '../lib/format.js';
 import { dashboardPath } from '../lib/roles.js';
@@ -18,12 +18,49 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
   );
 
+const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) =>
+  cx(
+    'block rounded-xl px-4 py-3 text-sm font-semibold transition-colors',
+    isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+  );
+
+interface NavItem {
+  to: string;
+  label: string;
+  end?: boolean;
+}
+
 export function AppShell() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const navItems: NavItem[] = user
+    ? [
+        { to: dashboardPath(user.role), label: 'Dashboard', end: true },
+        ...(user.role === 'vendor'
+          ? [
+              { to: '/vendor/profile', label: 'Profile' },
+              { to: '/vendor/requests', label: 'Requests' },
+              { to: '/vendor/quotations', label: 'Quotations' },
+              { to: '/vendor/reviews', label: 'Reviews' },
+              { to: '/vendor/settings', label: 'Settings' },
+            ]
+          : []),
+        { to: '/vendors', label: 'Vendors' },
+      ]
+    : [
+        { to: '/', label: 'Home', end: true },
+        { to: '/about', label: 'About' },
+        { to: '/how-it-works', label: 'How it works' },
+        { to: '/categories', label: 'Categories' },
+        { to: '/vendors', label: 'Vendors' },
+        { to: '/contact', label: 'Contact' },
+      ];
 
   useEffect(() => {
+    setMobileNavOpen(false);
     if (location.hash) {
       const id = location.hash.replace('#', '');
       const element = document.getElementById(id);
@@ -43,73 +80,52 @@ export function AppShell() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Link to="/" className="flex items-center gap-2.5">
-            <Logo />
-            <span className="text-lg font-bold tracking-tight text-slate-900">Event Bridge</span>
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
+          <Link to="/" className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+            <Logo className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
+            <span className="hidden truncate text-base font-bold tracking-tight text-slate-900 sm:inline sm:text-lg">
+              Event Bridge
+            </span>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-            {user ? (
-              <>
-                {user.role === 'vendor' && (
-                  <>
-                    <NavLink to="/vendor/profile" className={navLinkClass}>
-                      Profile
-                    </NavLink>
-                    <NavLink to="/vendor/requests" className={navLinkClass}>
-                      Requests
-                    </NavLink>
-                    <NavLink to="/vendor/quotations" className={navLinkClass}>
-                      Quotations
-                    </NavLink>
-                    <NavLink to="/vendor/reviews" className={navLinkClass}>
-                      Reviews
-                    </NavLink>
-                    <NavLink to="/vendor/settings" className={navLinkClass}>
-                      Settings
-                    </NavLink>
-                  </>
-                )}
-                {user.role === 'admin' && (
-                  <NavLink to="/admin" className={navLinkClass}>
-                    Dashboard
-                  </NavLink>
-                )}
-                <NavLink to="/vendors" className={navLinkClass}>
-                  Vendors
-                </NavLink>
-              </>
-            ) : (
-              <>
-                <NavLink to="/" className={navLinkClass}>
-                  Home
-                </NavLink>
-                <NavLink to="/about" className={navLinkClass}>
-                  About
-                </NavLink>
-                <a
-                  href="/how-it-works"
-                  className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                >
-                  How it works
-                </a>
-                <NavLink to="/categories" className={navLinkClass}>
-                  Categories
-                </NavLink>
-                <NavLink to="/vendors" className={navLinkClass}>
-                  Vendors
-                </NavLink>
-                <NavLink to="/contact" className={navLinkClass}>
-                  Contact
-                </NavLink>
-              </>
-            )}
+            {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
+                {item.label}
+              </NavLink>
+            ))}
           </nav>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen((value) => !value)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 md:hidden"
+              aria-label={mobileNavOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileNavOpen}
+              aria-controls="mobile-nav"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
+                {mobileNavOpen ? (
+                  <path
+                    d="M6 6l12 12M18 6 6 18"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                ) : (
+                  <path
+                    d="M4 7h16M4 12h16M4 17h16"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                )}
+              </svg>
+            </button>
+
             {loading ? (
-              <div className="h-9 w-24 animate-pulse rounded-full bg-slate-100" />
+              <div className="h-9 w-16 animate-pulse rounded-full bg-slate-100 sm:w-24" />
             ) : user ? (
               <>
                 <NotificationBell />
@@ -137,9 +153,11 @@ export function AppShell() {
               </>
             ) : (
               <>
-                <Link to="/login" className={buttonStyles('ghost', 'sm')}>
-                  Log in
-                </Link>
+                <span className="hidden sm:inline-flex">
+                  <Link to="/login" className={buttonStyles('ghost', 'sm')}>
+                    Log in
+                  </Link>
+                </span>
                 <Link to="/register" className={buttonStyles('primary', 'sm')}>
                   Get started
                 </Link>
@@ -147,6 +165,48 @@ export function AppShell() {
             )}
           </div>
         </div>
+
+        {mobileNavOpen && (
+          <nav
+            id="mobile-nav"
+            aria-label="Mobile"
+            className="border-t border-slate-200 bg-white md:hidden"
+          >
+            <div className="mx-auto max-w-6xl px-3 py-3 sm:px-6">
+              <div className="flex flex-col gap-1">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={mobileNavLinkClass}
+                    onClick={() => setMobileNavOpen(false)}
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+              {!user && (
+                <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3 sm:hidden">
+                  <Link
+                    to="/login"
+                    onClick={() => setMobileNavOpen(false)}
+                    className={`${buttonStyles('secondary', 'sm')} flex-1`}
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    to="/register"
+                    onClick={() => setMobileNavOpen(false)}
+                    className={`${buttonStyles('primary', 'sm')} flex-1`}
+                  >
+                    Get started
+                  </Link>
+                </div>
+              )}
+            </div>
+          </nav>
+        )}
       </header>
 
       <main className="flex-1">

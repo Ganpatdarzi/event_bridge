@@ -338,7 +338,8 @@ function VendorDashboard() {
                           <button
                             type="button"
                             onClick={() => void removePortfolio(image.id)}
-                            className="absolute right-1 top-1 rounded-full bg-white/90 px-1.5 py-0.5 text-xs font-semibold text-rose-600 opacity-0 transition-opacity group-hover:opacity-100"
+                            aria-label="Remove portfolio image"
+                            className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-sm font-semibold text-rose-600 opacity-100 transition-opacity focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
                           >
                             ×
                           </button>

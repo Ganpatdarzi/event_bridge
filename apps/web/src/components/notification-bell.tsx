@@ -176,7 +176,7 @@ export function NotificationBell() {
             className="fixed inset-0 z-40 cursor-default"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+          <div className="fixed inset-x-2 top-16 z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:mt-2 sm:w-[22rem] sm:max-w-[calc(100vw-2rem)]">
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900">Notifications</p>
@@ -250,7 +250,7 @@ export function NotificationBell() {
                           {item.body}
                         </span>
                       )}
-                      <span className="mt-1 block text-[11px] text-slate-400">
+                      <span className="mt-1 block text-xs text-slate-400">
                         {formatDateTime(item.createdAt)} · {humanize(item.type)}
                       </span>
                     </span>

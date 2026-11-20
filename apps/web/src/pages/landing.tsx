@@ -114,7 +114,7 @@ export function LandingPage() {
                     <div className="text-right">
                       <p className="text-sm font-bold text-slate-900">{quote.price}</p>
                       {quote.best && (
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-brand">
+                        <span className="text-xs font-bold uppercase tracking-wide text-brand">
                           Best value
                         </span>
                       )}
@@ -185,7 +185,7 @@ export function LandingPage() {
             </h2>
           </div>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {steps.map((step, index) => (
               <div key={step.title} className="relative">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-sm font-bold text-white">

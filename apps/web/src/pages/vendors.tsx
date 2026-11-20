@@ -181,7 +181,7 @@ export function VendorsPage() {
       )}
 
       {pagination && pagination.totalPages > 1 && (
-        <div className="mt-8 flex items-center justify-center gap-3">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
             className={buttonStyles('secondary', 'sm')}

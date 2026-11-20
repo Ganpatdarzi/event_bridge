@@ -20,10 +20,11 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 >
 > **Quality gates are green.** `npm run typecheck`, `npm run lint`, `npm run build`,
 > `npm run format:check`, `npm test` and `npm run test:e2e` all pass; the Vitest suites run
-> **68/68 tests** and Playwright adds **2/2 browser tests**. Coverage includes real migrations and
-> the auth, refresh-family revocation, quotation lifecycle, completion, comparison, notification,
-> mandatory security and rate-limit flows against PostgreSQL-in-WASM, React component tests, and
-> browser navigation/sign-in/comparison flows.
+> **68/68 tests** and Playwright adds **12/12 browser tests** across desktop, laptop, tablet and
+> mobile viewports. Coverage includes real migrations and the auth, refresh-family revocation,
+> quotation lifecycle, completion, comparison, notification, mandatory security and rate-limit flows
+> against PostgreSQL-in-WASM, React component tests, and responsive browser
+> navigation/sign-in/comparison flows.
 >
 > **Frontend.** A working React + TypeScript frontend runs against the API: a marketing landing
 > page, a searchable vendor directory, login and registration for both societies and vendors, a
@@ -794,7 +795,7 @@ A Husky pre-commit hook runs `lint-staged`, which applies ESLint fixes and Prett
 | Database integration | Vitest + PGlite             | Applies all migrations to PostgreSQL-in-WASM and checks tables, enums, keys and constraints                         |
 | API integration      | Vitest + Supertest + PGlite | Auth, refresh-family revocation, logout, duplicate/suspended paths, quotation lifecycle, privacy and security cases |
 | Component            | Vitest + Testing Library    | Comparison table, vendor selection, review form and society lifecycle actions                                       |
-| End-to-end           | Playwright                  | Landing-to-directory navigation and society sign-in → quotation comparison (mocked API, no database needed)         |
+| End-to-end           | Playwright                  | Responsive navigation and sign-in → quotation comparison across desktop, laptop, tablet and mobile (mocked API)     |
 
 Automated rate-limit checks in `apps/api/tests/rate-limit.integration.test.ts` and
 `auth-rate-limit.integration.test.ts` verify both the broad API limiter and the tighter credential
@@ -1076,4 +1077,5 @@ select → complete → review path exists via the API.
 
 **Status:** stages 0–8 implemented except multiple society representatives, payments, analytics and
 configurable Vercel API origin. Verified with typecheck, lint, build, format check, 68/68 Vitest
-tests and 2/2 Playwright tests — see the [build order](#21-build-order).
+tests and 12/12 Playwright tests across desktop, laptop, tablet and mobile viewports — see the
+[build order](#21-build-order).
