@@ -252,6 +252,13 @@ test('layout and navigation adapt to the viewport', async ({ page }) => {
     .toBeLessThanOrEqual(width + 1);
 
   if (width < 768) {
+    const menuBox = await page.getByRole('button', { name: 'Open menu' }).boundingBox();
+    const logoBox = await page
+      .getByRole('img', { name: 'Event Bridge logo' })
+      .first()
+      .boundingBox();
+    expect(menuBox!.x).toBeLessThan(logoBox!.x);
+
     await page.getByRole('button', { name: 'Open menu' }).click();
     const mobileNav = page.getByRole('navigation', { name: 'Mobile' });
     await expect(mobileNav).toBeVisible();

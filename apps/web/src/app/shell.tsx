@@ -81,26 +81,11 @@ export function AppShell() {
     <div className="flex min-h-screen flex-col bg-slate-50">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
-          <Link to="/" className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-            <Logo className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
-            <span className="hidden truncate text-base font-bold tracking-tight text-slate-900 sm:inline sm:text-lg">
-              Event Bridge
-            </span>
-          </Link>
-
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-            {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
             <button
               type="button"
               onClick={() => setMobileNavOpen((value) => !value)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 md:hidden"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 md:hidden"
               aria-label={mobileNavOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileNavOpen}
               aria-controls="mobile-nav"
@@ -123,7 +108,23 @@ export function AppShell() {
                 )}
               </svg>
             </button>
+            <Link to="/" className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+              <Logo className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
+              <span className="hidden truncate text-base font-bold tracking-tight text-slate-900 sm:inline sm:text-lg">
+                Event Bridge
+              </span>
+            </Link>
+          </div>
 
+          <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
+            {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {loading ? (
               <div className="h-9 w-16 animate-pulse rounded-full bg-slate-100 sm:w-24" />
             ) : user ? (
