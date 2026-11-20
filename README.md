@@ -33,8 +33,8 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 > unread counts. The bearer token is kept in memory; page reloads restore the session from the
 > httpOnly refresh cookie.
 >
-> **Not built yet.** Multiple society representatives, payments and analytics. The
-> [API reference](#8-api-reference) and
+> **Not built yet.** Multiple society representatives, payments, analytics and configurable Vercel
+> API origin. The [API reference](#8-api-reference) and
 > [build order](#21-build-order) describe the target specification; shipped endpoints are marked.
 
 ---
@@ -845,18 +845,17 @@ npm run test:e2e         # 2 browser tests; starts vite preview automatically
 
 ## 17. Deployment
 
-| Component        | Host                | Notes                                                                                                      |
-| ---------------- | ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Web (static SPA) | Vercel Hobby (free) | Root Directory `apps/web`; set `API_ORIGIN` for external rewrites, client routes fall back to `index.html` |
-| API              | Vercel Hobby (free) | Root Directory `apps/api`; Node 22 Express function, health check `/health`                                |
-| Database         | Neon Free           | Use the pooled URL for the API; run migrations with the direct URL                                         |
+| Component        | Host                | Notes                                                                                                   |
+| ---------------- | ------------------- | ------------------------------------------------------------------------------------------------------- |
+| Web (static SPA) | Vercel Hobby (free) | Root Directory `apps/web`; external rewrites forward `/api` and client routes fall back to `index.html` |
+| API              | Vercel Hobby (free) | Root Directory `apps/api`; Node 22 Express function, health check `/health`                             |
+| Database         | Neon Free           | Use the pooled URL for the API; run migrations with the direct URL                                      |
 
 See [docs/deployment.md](docs/deployment.md) for the exact free-tier setup steps.
 
 **Production checklist**
 
 - [ ] `NODE_ENV=production`, `COOKIE_SECURE=true`, correct `APP_ORIGIN`
-- [ ] Web project's `API_ORIGIN` points at the deployed API (read by `apps/web/vercel.ts` at build time)
 - [ ] Secrets set in the host's secret manager (not in the repo)
 - [ ] Migrations applied before the new API version starts
 - [ ] CORS restricted to the deployed web origin
@@ -1075,6 +1074,6 @@ select → complete → review path exists via the API.
 
 **License:** Academic project — not licensed for commercial use without the team's permission.
 
-**Status:** stages 0–8 implemented except multiple society representatives, payments and analytics.
-Verified with typecheck, lint, build, format check, 68/68 Vitest tests and 2/2 Playwright tests — see
-the [build order](#21-build-order).
+**Status:** stages 0–8 implemented except multiple society representatives, payments, analytics and
+configurable Vercel API origin. Verified with typecheck, lint, build, format check, 68/68 Vitest
+tests and 2/2 Playwright tests — see the [build order](#21-build-order).
