@@ -15,21 +15,23 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 > society/vendor profiles, the public vendor directory, admin-managed categories, vendor review
 > and account administration, request drafting/submission/matching, the vendor request board,
 > quotations with prefer/select/withdraw, server-generated side-by-side comparison, lazy expiry,
+> time-bound vendor hiring with overlap protection, public vendor profiles with live availability,
 > request completion, completed-only reviews, portfolio uploads, notifications and admin
 > dashboards are all implemented.
 >
 > **Quality gates are green.** `npm run typecheck`, `npm run lint`, `npm run build`,
 > `npm run format:check`, `npm test` and `npm run test:e2e` all pass; the Vitest suites run
-> **68/68 tests** and Playwright adds **12/12 browser tests** across desktop, laptop, tablet and
+> **77/77 tests** and Playwright adds **16/16 browser tests** across desktop, laptop, tablet and
 > mobile viewports. Coverage includes real migrations and the auth, refresh-family revocation,
-> quotation lifecycle, completion, comparison, notification, mandatory security and rate-limit flows
-> against PostgreSQL-in-WASM, React component tests, and responsive browser
-> navigation/sign-in/comparison flows.
+> quotation lifecycle, booking exclusivity, completion, comparison, notification, mandatory security
+> and rate-limit flows against PostgreSQL-in-WASM, React component tests, and responsive browser
+> navigation/sign-in/comparison/profile flows.
 >
 > **Frontend.** A working React + TypeScript frontend runs against the API: a marketing landing
 > page, a searchable vendor directory, login and registration for both societies and vendors, a
-> society dashboard that publishes requests and reviews/compares/selects vendor applications, a
-> vendor dashboard with verification, matched requests and an inline quotation form, an admin
+> society dashboard that publishes requests, reviews/compares/selects vendor applications and hires
+> vendors for a time window, public vendor profiles with category/portfolio/review/availability
+> details, a vendor dashboard with verification, matched requests and an inline quotation form, an admin
 > console with platform stats, moderation and category oversight, and a notification bell with
 > unread counts. The bearer token is kept in memory; page reloads restore the session from the
 > httpOnly refresh cookie.
@@ -361,13 +363,18 @@ account_status       ('active','suspended','deactivated')
 vendor_status        ('pending_review','verified','changes_requested','rejected','suspended','deactivated')
 request_status       ('draft','submitted','open','partially_quoted','quoted','selected','completed','closed','cancelled')
 quotation_status     ('submitted','updated','withdrawn','preferred','selected','not_selected','expired')
+booking_status       ('confirmed','cancelled','completed')
 distribution_status  ('invited','viewed','responded','declined')
-notification_type    ('new_quotation','quotation_selected','quotation_rejected','vendor_status','request_closed','request_new')
+notification_type    ('request_new','new_quotation','quotation_selected','quotation_rejected','request_closed','request_completed','booking_created','booking_cancelled','vendor_status')
 ```
 
 ### Integrity rules
 
 - `quotations(request_id, vendor_id)` is **unique** — one vendor, one offer per request.
+- `bookings(request_id)` is **uniquely active** while `status = 'confirmed'` — one hire per request.
+- A `confirmed` booking reserves `[starts_at, ends_at)` exclusively for that vendor; overlapping
+  hires are rejected by the vendor-row-locked service check. Cancelling or completing the hire frees
+  the window.
 - `reviews(request_id)` is **unique** — one review per completed engagement (FR-076).
 - `service_requests.selected_quotation_id` must reference a quotation belonging to the **same** request (enforce in service layer + trigger).
 - `price` and `budget` are `numeric(12,2)` with `CHECK (>= 0)`.
@@ -464,6 +471,19 @@ Implemented:
 
 Planned, not shipped yet: `GET /quotations`, `GET /quotations/:id` and `PATCH /quotations/:id`.
 `GET /requests/:id/compare` is implemented and is used by the React comparison table.
+
+### Bookings (hire)
+
+| Method | Endpoint                           | Access          | Description                                    |
+| ------ | ---------------------------------- | --------------- | ---------------------------------------------- |
+| POST   | `/bookings`                        | Society         | Hire the vendor on a selected quotation        |
+| GET    | `/bookings/me`                     | Society, vendor | List your hires                                |
+| GET    | `/bookings/availability/:vendorId` | Authenticated   | Check busy windows for an optional `from`/`to` |
+| POST   | `/bookings/:id/cancel`             | Society, vendor | Cancel an active hire and free the window      |
+
+A booking stores the agreed amount from the selected quotation plus a half-open time window.
+Only `confirmed` bookings block other societies. Marking the request complete moves its confirmed
+booking to `completed`; reviews remain restricted to completed engagements.
 
 ### Reviews (P1)
 
@@ -581,6 +601,15 @@ submitted ──┬──▶ preferred ──▶ selected
             ├──▶ not_selected
             └──▶ expired (valid_until passed)
 ```
+
+### Booking
+
+```
+confirmed ──┬──▶ completed  (request marked complete)
+            └──▶ cancelled  (society or vendor cancels)
+```
+
+Only `confirmed` reserves the vendor's time.
 
 ### Vendor
 

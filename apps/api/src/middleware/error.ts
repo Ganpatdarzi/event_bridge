@@ -1,7 +1,12 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { logger } from '../config/logger.js';
-import { AppError, isForeignKeyViolation, isUniqueViolation } from '../lib/errors.js';
+import {
+  AppError,
+  isForeignKeyViolation,
+  isInvalidEnumValue,
+  isUniqueViolation,
+} from '../lib/errors.js';
 
 export const notFound: RequestHandler = (_req, res) => {
   res.status(404).json({
@@ -50,6 +55,16 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   if (isForeignKeyViolation(error)) {
     res.status(400).json({
       error: { code: 'INVALID_REFERENCE', message: 'A referenced record does not exist' },
+    });
+    return;
+  }
+
+  if (isInvalidEnumValue(error)) {
+    res.status(409).json({
+      error: {
+        code: 'SCHEMA_OUT_OF_DATE',
+        message: 'The database schema is out of date. Apply the latest migrations and retry.',
+      },
     });
     return;
   }

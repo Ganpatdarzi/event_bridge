@@ -200,9 +200,11 @@ returned by the detail endpoint.
 ### `GET /vendors/:id`
 
 Public profile of a verified vendor with an active account. Adds `contactPerson`, `contactPhone`,
-categories and rating. The account email is **not** exposed to anonymous callers; it is only
-returned by `GET /vendors/me` and to admins. Returns `404` for pending, suspended or deactivated
-vendors so the directory does not leak their existence.
+categories, rating and `portfolio` (`id`, `dataUrl`, `caption`, `createdAt`). The account email is
+**not** exposed to anonymous callers; it is only returned by `GET /vendors/me` and to admins.
+Returns `404` for pending, suspended or deactivated vendors so the directory does not leak their
+existence. The React profile route (`/vendors/:id`) also exposes live hire availability to signed-in
+societies through `GET /bookings/availability/:vendorId`.
 
 ### `GET /vendors/me` · `PATCH /vendors/me`
 
@@ -510,8 +512,10 @@ audit trail but are excluded from the summary.
 
 No body. Both return the updated request detail. They are society-owned. Closing quoting audits
 `request.review_opened` and requires at least one non-withdrawn, non-expired quotation. Completion
-audits `request.completed` and notifies the vendor whose quotation was selected with
-`request_completed`. Illegal transitions return `409 CONFLICT` or `422 RULE_VIOLATION`.
+audits `request.completed`, moves the request's confirmed hire to `completed`, and then sends a
+best-effort `request_completed` notification to the vendor whose quotation was selected. A stale
+notification enum therefore cannot roll back completion. Illegal transitions return `409 CONFLICT`
+or `422 RULE_VIOLATION`.
 
 ### `POST /requests/:id/review`
 
@@ -519,6 +523,40 @@ Society owner only, and only once the request status is `completed`. Body:
 `{ "rating": 5, "comment": "Optional, up to 2000 characters" }`. Returns `201` with the review.
 A second review for the same request returns `409 CONFLICT`. Before completion the same call
 returns `409 CONFLICT`.
+
+## Vendor hiring (bookings)
+
+A hire is created from a selected quotation, so the request/quotation/review guarantees still apply.
+All booking routes require a bearer token; only a society may create a hire, while either involved
+society or vendor may cancel one.
+
+| Method | Endpoint                           | Access          | Effect                                     |
+| ------ | ---------------------------------- | --------------- | ------------------------------------------ |
+| POST   | `/bookings`                        | Society         | Confirm a hire for a selected quotation    |
+| GET    | `/bookings/me`                     | Society, vendor | List the caller's hires                    |
+| GET    | `/bookings/availability/:vendorId` | Authenticated   | Return busy windows for an optional window |
+| POST   | `/bookings/:id/cancel`             | Society, vendor | Cancel an active hire                      |
+
+`POST /bookings` body:
+
+```json
+{
+  "quotationId": "quote-uuid",
+  "startsAt": "2030-06-01T10:00:00.000Z",
+  "endsAt": "2030-06-01T14:00:00.000Z",
+  "notes": "Optional hire notes"
+}
+```
+
+The window is half-open (`[startsAt, endsAt)`): a hire ending at 14:00 does not conflict with one
+starting at 14:00. Only `confirmed` bookings reserve the vendor. Overlapping hires return
+`409 BOOKING_CONFLICT` with the conflicting window; one active hire per request is also enforced by
+a partial unique index. Cancelling a hire frees the window; completing the request moves its
+confirmed hire to `completed`. `GET /bookings/availability/:vendorId` accepts optional `from` and `to`
+ISO timestamps and returns `{ available, busyWindows: [{ id, startsAt, endsAt }] }`.
+
+`booking_created` and `booking_cancelled` notifications are best-effort: the state transition is
+committed first, so a stale notification enum cannot roll it back.
 
 ## Administration
 

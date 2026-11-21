@@ -143,6 +143,24 @@ async function mockApi(page: Page) {
       };
     } else if (path === '/api/v1/categories') {
       body = { data: [category] };
+    } else if (/^\/api\/v1\/vendors\/[^/]+\/reviews$/.test(path)) {
+      body = { data: [] };
+    } else if (/^\/api\/v1\/vendors\/[^/]+$/.test(path) && !path.endsWith('/me')) {
+      body = {
+        data: {
+          id: 'vendor-a',
+          businessName: vendor.businessName,
+          description: 'Catering for campus events and formal gala dinners.',
+          city: vendor.city,
+          serviceArea: vendor.serviceArea,
+          verifiedAt: '2026-01-01T00:00:00.000Z',
+          categories: [category],
+          rating: { average: 4.8, count: 12 },
+          contactPerson: vendor.contactPerson,
+          contactPhone: vendor.contactPhone,
+          portfolio: [],
+        },
+      };
     } else if (path === '/api/v1/vendors') {
       body = {
         data: {
@@ -182,6 +200,16 @@ async function mockApi(page: Page) {
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
           account: { id: user.id, name: user.name, email: user.email },
+        },
+      };
+    } else if (path.startsWith('/api/v1/bookings/availability/')) {
+      body = {
+        data: {
+          vendorId: 'vendor-a',
+          from: '2030-06-01T10:00:00.000Z',
+          to: '2030-06-01T14:00:00.000Z',
+          available: true,
+          busyWindows: [],
         },
       };
     } else if (path.startsWith('/api/v1/requests/') && path.endsWith('/compare')) {
@@ -241,6 +269,24 @@ test('society can sign in and compare quotations side by side', async ({ page })
   await expect(table.getByRole('columnheader', { name: 'With extras' })).toBeVisible();
   await expect(table.getByText('Vendor A Catering')).toBeVisible();
   await expect(table.getByText('Vendor B Catering')).toBeVisible();
+});
+
+test('society can inspect a vendor profile and check availability', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('society@eventbridge.test');
+  await page.getByLabel('Password').fill('Society123!');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Welcome back, Society' })).toBeVisible();
+  await page.getByRole('button', { name: 'Review applications' }).click();
+  await page.getByRole('link', { name: 'View profile' }).first().click();
+
+  await expect(page).toHaveURL(/\/vendors\/vendor-a$/);
+  await expect(page.getByRole('heading', { name: 'Vendor A Catering' })).toBeVisible();
+  await expect(page.getByText('Catering', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Check availability' }).click();
+  await expect(page.getByText('Available for this window')).toBeVisible();
 });
 
 test('layout and navigation adapt to the viewport', async ({ page }) => {

@@ -27,6 +27,7 @@ describe('initial migration', () => {
     expect(rows.map((row) => row.tablename)).toEqual([
       'approval_records',
       'audit_logs',
+      'bookings',
       'categories',
       'events',
       'notifications',
@@ -51,6 +52,7 @@ describe('initial migration', () => {
 
     expect(rows.map((row) => row.typname)).toEqual([
       'account_status',
+      'booking_status',
       'distribution_status',
       'notification_type',
       'quotation_status',

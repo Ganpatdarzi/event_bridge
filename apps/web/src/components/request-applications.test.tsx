@@ -45,6 +45,11 @@ const quotationsPage = {
   pagination: { page: 1, pageSize: 50, total: 2, totalPages: 1 },
 };
 
+const selectedQuotationPage = {
+  ...quotationsPage,
+  items: [{ ...quotation, status: 'selected' }],
+};
+
 const comparison = {
   requestId: 'request-1',
   request: {
@@ -143,5 +148,46 @@ describe('RequestApplications', () => {
     });
     expect(await screen.findByText(/Vendor selected/)).toBeInTheDocument();
     expect(onSelect).toHaveBeenCalledOnce();
+  });
+
+  it('checks availability and creates a hire for the selected quotation', async () => {
+    const user = userEvent.setup();
+    state.api.mockImplementation(async (path: string, options?: { method?: string }) => {
+      if (path.includes('/compare')) return comparison;
+      if (path.includes('/quotations?pageSize')) return selectedQuotationPage;
+      if (path.includes('/bookings/availability')) {
+        return {
+          vendorId: vendor.id,
+          from: '2030-06-01T10:00:00.000Z',
+          to: '2030-06-01T14:00:00.000Z',
+          available: true,
+          busyWindows: [],
+        };
+      }
+      if (path === '/bookings' && options?.method === 'POST') {
+        return { id: 'booking-1', status: 'confirmed' };
+      }
+      return { data: {} };
+    });
+
+    const onBooked = vi.fn();
+    render(<RequestApplications requestId="request-1" canBook onBooked={onBooked} />);
+
+    expect(await screen.findByText('Hire this vendor')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Check availability' }));
+    expect(await screen.findByText('Available for this window.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Confirm hire' }));
+
+    await waitFor(() => {
+      expect(state.api).toHaveBeenCalledWith(
+        '/bookings',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"quotationId":"quote-a"'),
+        }),
+      );
+    });
+    expect(onBooked).toHaveBeenCalledOnce();
   });
 });

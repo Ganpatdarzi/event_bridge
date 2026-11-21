@@ -35,6 +35,8 @@ export const quotationStatusEnum = pgEnum('quotation_status', [
   'expired',
 ]);
 
+export const bookingStatusEnum = pgEnum('booking_status', ['confirmed', 'cancelled', 'completed']);
+
 export const distributionStatusEnum = pgEnum('distribution_status', [
   'invited',
   'viewed',
@@ -49,5 +51,7 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'quotation_rejected',
   'request_closed',
   'request_completed',
+  'booking_created',
+  'booking_cancelled',
   'vendor_status',
 ]);

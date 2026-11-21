@@ -240,6 +240,12 @@ export interface VendorSummary {
   rating: VendorRating;
 }
 
+export interface PublicVendorDetail extends VendorSummary {
+  contactPerson: string | null;
+  contactPhone: string | null;
+  portfolio: PortfolioImage[];
+}
+
 export interface MyQuotationListItem {
   id: string;
   reference: string;
@@ -267,6 +273,41 @@ export interface PortfolioImage {
   createdAt: string;
 }
 
+export interface BookingSummary {
+  id: string;
+  quotationId: string;
+  vendorId: string;
+  status: string;
+  startsAt: string;
+  endsAt: string;
+  amount: number;
+  currency: string;
+}
+
+export interface BookingDetail extends BookingSummary {
+  requestId: string;
+  societyId: string;
+  notes: string | null;
+  request: { id: string; reference: string; title: string };
+  vendor: { id: string; businessName: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusyWindow {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface VendorAvailability {
+  vendorId: string;
+  from: string;
+  to: string;
+  available: boolean;
+  busyWindows: BusyWindow[];
+}
+
 export interface RequestListItem {
   id: string;
   reference: string;
@@ -286,6 +327,7 @@ export interface RequestListItem {
   responseDeadline: string | null;
   invitationCount: number;
   quotationCount: number;
+  booking?: BookingSummary | null;
   createdAt: string;
   updatedAt: string;
 }

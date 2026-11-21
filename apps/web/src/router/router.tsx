@@ -5,6 +5,7 @@ import { AboutPage } from '../pages/about.js';
 import { HowItWorksPage } from '../pages/how-it-works.js';
 import { CategoriesPage } from '../pages/categories.js';
 import { VendorsPage } from '../pages/vendors.js';
+import { VendorProfilePage } from '../pages/vendor-profile.js';
 import { ContactPage } from '../pages/contact.js';
 import { LoginPage } from '../pages/login.js';
 import { RegisterPage } from '../pages/register.js';
@@ -22,6 +23,7 @@ export function AppRouter() {
         <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/vendors" element={<VendorsPage />} />
+        <Route path="/vendors/:vendorId" element={<VendorProfilePage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

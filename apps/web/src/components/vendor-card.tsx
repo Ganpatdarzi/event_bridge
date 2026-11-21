@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { VendorReview, VendorSummary } from '../lib/api.js';
 import { api } from '../lib/api.js';
 import { formatDate } from '../lib/format.js';
@@ -66,7 +67,7 @@ export function VendorCard({ vendor }: { vendor: VendorSummary }) {
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-2">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           className={buttonStyles('ghost', 'sm')}
@@ -75,7 +76,12 @@ export function VendorCard({ vendor }: { vendor: VendorSummary }) {
         >
           {loading ? 'Loading…' : showReviews ? 'Hide reviews' : 'Show reviews'}
         </button>
-        <span className="text-xs font-semibold text-emerald-700">Verified vendor</span>
+        <Link
+          to={`/vendors/${vendor.id}`}
+          className="text-xs font-semibold text-brand hover:underline"
+        >
+          View profile →
+        </Link>
       </div>
 
       {showReviews && reviews && (

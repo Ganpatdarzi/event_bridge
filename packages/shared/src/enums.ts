@@ -111,6 +111,27 @@ export const QUOTATION_EDITABLE: QuotationStatus[] = ['submitted', 'updated', 'p
 export const QUOTATION_DECIDABLE: QuotationStatus[] = ['submitted', 'updated', 'preferred'];
 
 /* ------------------------------------------------------------------ */
+/* Booking (hire) lifecycle                                            */
+/* ------------------------------------------------------------------ */
+
+export const BOOKING_STATUSES = ['confirmed', 'cancelled', 'completed'] as const;
+export type BookingStatus = (typeof BOOKING_STATUSES)[number];
+export const bookingStatusSchema = z.enum(BOOKING_STATUSES);
+
+export const BOOKING_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
+  confirmed: ['cancelled', 'completed'],
+  cancelled: [],
+  completed: [],
+};
+
+/** Only confirmed bookings reserve a vendor's time. */
+export const ACTIVE_BOOKING_STATUSES: BookingStatus[] = ['confirmed'];
+
+export function canTransitionBooking(from: BookingStatus, to: BookingStatus): boolean {
+  return BOOKING_TRANSITIONS[from].includes(to);
+}
+
+/* ------------------------------------------------------------------ */
 /* Distribution                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -129,6 +150,8 @@ export const NOTIFICATION_TYPES = [
   'quotation_rejected',
   'request_closed',
   'request_completed',
+  'booking_created',
+  'booking_cancelled',
   'vendor_status',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

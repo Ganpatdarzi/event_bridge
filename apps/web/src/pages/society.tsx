@@ -257,6 +257,11 @@ function SocietyDashboard() {
                       Closes {formatDateTime(request.responseDeadline)}
                     </p>
                   )}
+                  {request.booking && request.booking.status !== 'cancelled' && (
+                    <p className="mt-1 text-xs font-semibold text-emerald-700">
+                      Hired · {formatDateTime(request.booking.startsAt)}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -300,7 +305,10 @@ function SocietyDashboard() {
                 <RequestApplications
                   requestId={request.id}
                   canSelect={['partially_quoted', 'quoted'].includes(request.status)}
+                  canBook={request.status === 'selected'}
+                  booking={request.booking}
                   onSelect={() => requests.reload()}
+                  onBooked={() => requests.reload()}
                 />
               )}
 

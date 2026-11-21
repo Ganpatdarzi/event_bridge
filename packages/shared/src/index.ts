@@ -6,4 +6,5 @@ export * from './schemas/categories.js';
 export * from './schemas/admin.js';
 export * from './schemas/requests.js';
 export * from './schemas/quotations.js';
+export * from './schemas/bookings.js';
 export * from './schemas/reviews.js';

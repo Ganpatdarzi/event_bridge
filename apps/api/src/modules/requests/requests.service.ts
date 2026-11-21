@@ -11,6 +11,7 @@ import {
 } from '@event-bridge/shared';
 import { db } from '../../db/index.js';
 import {
+  bookings,
   categories,
   events,
   notifications,
@@ -22,6 +23,7 @@ import {
 } from '../../db/schema/index.js';
 import { writeAuditTx } from '../../lib/audit.js';
 import { AppError } from '../../lib/errors.js';
+import { notifyBestEffort } from '../../lib/notifications.js';
 import { buildPagination, likePattern, type PageRequest } from '../../lib/pagination.js';
 import { makeReference } from '../../lib/reference.js';
 import type { Transaction } from '../../lib/transaction.js';
@@ -110,6 +112,17 @@ export interface RequestDetail {
   updatedAt: Date;
 }
 
+export interface BookingSummary {
+  id: string;
+  quotationId: string;
+  vendorId: string;
+  status: 'confirmed' | 'cancelled' | 'completed';
+  startsAt: Date;
+  endsAt: Date;
+  amount: number;
+  currency: string;
+}
+
 export interface RequestListItem {
   id: string;
   reference: string;
@@ -127,6 +140,7 @@ export interface RequestListItem {
   responseDeadline: Date | null;
   invitationCount: number;
   quotationCount: number;
+  booking?: BookingSummary | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -801,6 +815,43 @@ export async function listRequests(
     .limit(filter.limit)
     .offset(filter.offset);
 
+  const requestIds = rows.map((row) => row.id);
+  const bookingRows = requestIds.length
+    ? await db
+        .select({
+          id: bookings.id,
+          requestId: bookings.requestId,
+          quotationId: bookings.quotationId,
+          vendorId: bookings.vendorId,
+          status: bookings.status,
+          startsAt: bookings.startsAt,
+          endsAt: bookings.endsAt,
+          amount: bookings.amount,
+          currency: bookings.currency,
+        })
+        .from(bookings)
+        .where(
+          and(
+            inArray(bookings.requestId, requestIds),
+            inArray(bookings.status, ['confirmed', 'completed']),
+          ),
+        )
+    : [];
+
+  const bookingByRequest = new Map<string, BookingSummary>();
+  for (const row of bookingRows) {
+    bookingByRequest.set(row.requestId, {
+      id: row.id,
+      quotationId: row.quotationId,
+      vendorId: row.vendorId,
+      status: row.status,
+      startsAt: row.startsAt,
+      endsAt: row.endsAt,
+      amount: toNumber(row.amount) ?? 0,
+      currency: row.currency,
+    });
+  }
+
   const items: RequestListItem[] = rows.map((row) => ({
     id: row.id,
     reference: row.reference,
@@ -830,6 +881,7 @@ export async function listRequests(
     responseDeadline: row.responseDeadline,
     invitationCount: row.invitationCount,
     quotationCount: row.quotationCount,
+    booking: bookingByRequest.get(row.id) ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
@@ -1358,6 +1410,9 @@ export async function completeRequest(
   viewer: RequestViewer,
   requestId: string,
 ): Promise<RequestDetail> {
+  let vendorUserId: string | undefined;
+  let completionContext: { title: string; societyName: string } | undefined;
+
   await db.transaction(async (tx) => {
     const [request] = await tx
       .select()
@@ -1378,6 +1433,8 @@ export async function completeRequest(
       throw AppError.notFound('Request not found');
     }
 
+    completionContext = { title: request.title, societyName: society.name };
+
     if (!canTransitionRequest(request.status, 'completed')) {
       throw AppError.conflict('CONFLICT', 'Only a selected request can be marked complete');
     }
@@ -1397,16 +1454,12 @@ export async function completeRequest(
       .innerJoin(vendors, eq(vendors.id, quotations.vendorId))
       .where(eq(quotations.id, request.selectedQuotationId))
       .limit(1);
+    vendorUserId = vendorUser?.userId;
 
-    if (vendorUser) {
-      await tx.insert(notifications).values({
-        userId: vendorUser.userId,
-        type: 'request_completed',
-        title: 'Engagement marked complete',
-        body: `${society.name} marked "${request.title}" as complete. The society can now leave a review.`,
-        link: '/vendor',
-      });
-    }
+    await tx
+      .update(bookings)
+      .set({ status: 'completed', updatedAt: new Date() })
+      .where(and(eq(bookings.requestId, requestId), eq(bookings.status, 'confirmed')));
 
     await writeAuditTx(tx, {
       actorId: viewer.id,
@@ -1416,6 +1469,16 @@ export async function completeRequest(
       metadata: { selectedQuotationId: request.selectedQuotationId },
     });
   });
+
+  if (vendorUserId && completionContext) {
+    await notifyBestEffort({
+      userId: vendorUserId,
+      type: 'request_completed',
+      title: 'Engagement marked complete',
+      body: `${completionContext.societyName} marked "${completionContext.title}" as complete. The society can now leave a review.`,
+      link: '/vendor',
+    });
+  }
 
   return getRequestDetail(viewer, requestId);
 }

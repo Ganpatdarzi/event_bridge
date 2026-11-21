@@ -31,9 +31,12 @@ npm run db:migrate -w @event-bridge/api
 `DIRECT_URL` is required because DDL must not go through Neon's pooled connection.
 
 For an existing deployment, migration `0006_rainy_misty_knight.sql` adds the `request_completed`
-notification type and is required by the completion flow; running `npm run db:migrate` applies it
-along with any earlier pending migrations. Migrations `0004` (unique quotation indexes) and `0005`
-(refresh-token families) must also be present for the current API build.
+notification type, and `0007_booking_flow.sql` adds the `bookings` table, `booking_status` enum and
+booking notification types used by the hire flow. Running `npm run db:migrate` applies them along
+with any earlier pending migrations. Completion notifications are best-effort, so a missing `0006`
+no longer rolls back a completed request, but the migration is still required for the notification to
+be delivered. Migrations `0004` (unique quotation indexes) and `0005` (refresh-token families) must
+also be present for the current API build.
 
 ## 3. Deploy the API project first
 

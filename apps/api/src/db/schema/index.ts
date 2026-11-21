@@ -9,6 +9,7 @@ export * from './service-requests.js';
 export * from './system-settings.js';
 export * from './request-vendors.js';
 export * from './quotations.js';
+export * from './bookings.js';
 export * from './reviews.js';
 export * from './notifications.js';
 export * from './portfolio-images.js';

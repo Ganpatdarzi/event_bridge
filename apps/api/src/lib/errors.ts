@@ -80,3 +80,8 @@ export function isUniqueViolation(error: unknown): boolean {
 export function isForeignKeyViolation(error: unknown): boolean {
   return hasPostgresCode(error, '23503');
 }
+
+/** An enum value in the code is newer than the deployed database enum. */
+export function isInvalidEnumValue(error: unknown): boolean {
+  return hasPostgresCode(error, '22P02');
+}
