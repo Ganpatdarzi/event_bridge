@@ -204,7 +204,8 @@ categories, rating and `portfolio` (`id`, `dataUrl`, `caption`, `createdAt`). Th
 **not** exposed to anonymous callers; it is only returned by `GET /vendors/me` and to admins.
 Returns `404` for pending, suspended or deactivated vendors so the directory does not leak their
 existence. The React profile route (`/vendors/:id`) also exposes live hire availability to signed-in
-societies through `GET /bookings/availability/:vendorId`.
+societies through `GET /bookings/availability/:vendorId`, plus their own selectable/hireable
+quotations through `GET /bookings/options/:vendorId`.
 
 ### `GET /vendors/me` · `PATCH /vendors/me`
 
@@ -530,12 +531,13 @@ A hire is created from a selected quotation, so the request/quotation/review gua
 All booking routes require a bearer token; only a society may create a hire, while either involved
 society or vendor may cancel one.
 
-| Method | Endpoint                           | Access          | Effect                                     |
-| ------ | ---------------------------------- | --------------- | ------------------------------------------ |
-| POST   | `/bookings`                        | Society         | Confirm a hire for a selected quotation    |
-| GET    | `/bookings/me`                     | Society, vendor | List the caller's hires                    |
-| GET    | `/bookings/availability/:vendorId` | Authenticated   | Return busy windows for an optional window |
-| POST   | `/bookings/:id/cancel`             | Society, vendor | Cancel an active hire                      |
+| Method | Endpoint                           | Access          | Effect                                        |
+| ------ | ---------------------------------- | --------------- | --------------------------------------------- |
+| POST   | `/bookings`                        | Society         | Confirm a hire for a selected quotation       |
+| GET    | `/bookings/me`                     | Society, vendor | List the caller's hires                       |
+| GET    | `/bookings/availability/:vendorId` | Authenticated   | Return busy windows for an optional window    |
+| GET    | `/bookings/options/:vendorId`      | Society         | List quotations the caller can select or hire |
+| POST   | `/bookings/:id/cancel`             | Society, vendor | Cancel an active hire                         |
 
 `POST /bookings` body:
 
@@ -554,6 +556,12 @@ starting at 14:00. Only `confirmed` bookings reserve the vendor. Overlapping hir
 a partial unique index. Cancelling a hire frees the window; completing the request moves its
 confirmed hire to `completed`. `GET /bookings/availability/:vendorId` accepts optional `from` and `to`
 ISO timestamps and returns `{ available, busyWindows: [{ id, startsAt, endsAt }] }`.
+
+`GET /bookings/options/:vendorId` powers the society-facing vendor profile. It returns only the
+caller's own quotations for that vendor with `canSelect` / `canHire` flags and the latest booking,
+so a society can select a quotation or confirm a hire without leaving the profile. The underlying
+lifecycle is unchanged: selection still requires an open decision window and hiring still requires
+a selected quotation.
 
 `booking_created` and `booking_cancelled` notifications are best-effort: the state transition is
 committed first, so a stale notification enum cannot roll it back.

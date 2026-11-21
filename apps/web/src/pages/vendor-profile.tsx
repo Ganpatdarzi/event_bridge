@@ -18,6 +18,7 @@ import {
   PageHeader,
   SectionHeading,
 } from '../components/ui.js';
+import { VendorHireOptions } from '../components/vendor-hire-options.js';
 
 function toDateTimeInput(value: Date): string {
   const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
@@ -88,6 +89,12 @@ export function VendorProfilePage() {
 
   const vendor = profile.data;
   const reviewItems = reviews.data ?? [];
+  const dashboardLink =
+    user?.role === 'vendor'
+      ? { to: '/vendor/requests', label: 'Go to my requests' }
+      : user?.role === 'admin'
+        ? { to: '/admin', label: 'Go to admin dashboard' }
+        : { to: '/society/requests', label: 'Go to my requests' };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -120,6 +127,10 @@ export function VendorProfilePage() {
               {vendor.description}
             </p>
           </Card>
+
+          {user?.role === 'society' && (
+            <VendorHireOptions vendorId={vendor.id} vendorName={vendor.businessName} />
+          )}
 
           <section>
             <SectionHeading title="Portfolio" description="Recent work shared by this vendor" />
@@ -260,12 +271,22 @@ export function VendorProfilePage() {
                 Sign in as a society to check live hire availability and reserve this vendor.
               </p>
             )}
-            <Link
-              to="/society/requests"
-              className={`${buttonStyles('secondary', 'sm')} mt-4 w-full text-center`}
-            >
-              Go to my requests
-            </Link>
+            <div className="mt-4 space-y-2">
+              {user?.role === 'society' && (
+                <Link
+                  to="/society/create"
+                  className={`${buttonStyles('primary', 'sm')} w-full text-center`}
+                >
+                  Create a request
+                </Link>
+              )}
+              <Link
+                to={dashboardLink.to}
+                className={`${buttonStyles('secondary', 'sm')} w-full text-center`}
+              >
+                {dashboardLink.label}
+              </Link>
+            </div>
           </Card>
 
           <Card className="p-5">

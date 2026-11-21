@@ -63,6 +63,19 @@ const quotation = {
   updatedAt: '2026-11-20T10:00:00.000Z',
 };
 
+const hireOption = {
+  ...quotation,
+  requestReference: 'EB-R-0001',
+  requestTitle: 'Catering for E2E Gala',
+  eventName: 'E2E Gala',
+  eventDate: '2026-12-12',
+  quotationStatus: 'selected',
+  requestStatus: 'selected',
+  canSelect: false,
+  canHire: true,
+  booking: null,
+};
+
 const comparison = {
   requestId: 'req-1',
   request: {
@@ -202,6 +215,28 @@ async function mockApi(page: Page) {
           account: { id: user.id, name: user.name, email: user.email },
         },
       };
+    } else if (path === '/api/v1/bookings' && route.request().method() === 'POST') {
+      body = {
+        data: {
+          id: 'booking-1',
+          requestId: 'req-1',
+          quotationId: 'quote-a',
+          societyId: 'soc-1',
+          vendorId: 'vendor-a',
+          status: 'confirmed',
+          startsAt: '2030-06-01T10:00:00.000Z',
+          endsAt: '2030-06-01T14:00:00.000Z',
+          amount: 105_000,
+          currency: 'PKR',
+          notes: null,
+          request: { id: 'req-1', reference: 'EB-R-0001', title: 'Catering for E2E Gala' },
+          vendor: { id: 'vendor-a', businessName: 'Vendor A Catering' },
+          createdAt: '2026-11-20T10:00:00.000Z',
+          updatedAt: '2026-11-20T10:00:00.000Z',
+        },
+      };
+    } else if (path.startsWith('/api/v1/bookings/options/')) {
+      body = { data: { vendorId: 'vendor-a', items: [hireOption] } };
     } else if (path.startsWith('/api/v1/bookings/availability/')) {
       body = {
         data: {
@@ -285,8 +320,17 @@ test('society can inspect a vendor profile and check availability', async ({ pag
   await expect(page.getByRole('heading', { name: 'Vendor A Catering' })).toBeVisible();
   await expect(page.getByText('Catering', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Check availability' }).click();
+  const hireSection = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'Select or hire for an event' }),
+  });
+  await expect(hireSection.getByText('Catering for E2E Gala')).toBeVisible();
+  await expect(hireSection.getByText('Hire this vendor')).toBeVisible();
+
+  await page.locator('aside').getByRole('button', { name: 'Check availability' }).click();
   await expect(page.getByText('Available for this window')).toBeVisible();
+
+  await hireSection.getByRole('button', { name: 'Confirm hire' }).click();
+  await expect(page.getByText('Vendor A Catering is now hired.')).toBeVisible();
 });
 
 test('layout and navigation adapt to the viewport', async ({ page }) => {

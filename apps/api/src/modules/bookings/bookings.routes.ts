@@ -8,6 +8,7 @@ import {
   createBookingHandler,
   getAvailabilityHandler,
   listMyBookingsHandler,
+  listVendorHireOptionsHandler,
 } from './bookings.controller.js';
 
 const idParams = z.object({ id: uuidSchema });
@@ -19,6 +20,12 @@ bookingsRouter.use(authenticate);
 
 bookingsRouter.get('/availability/:vendorId', validateParams(vendorParams), getAvailabilityHandler);
 bookingsRouter.get('/me', listMyBookingsHandler);
+bookingsRouter.get(
+  '/options/:vendorId',
+  authorize('society'),
+  validateParams(vendorParams),
+  listVendorHireOptionsHandler,
+);
 bookingsRouter.post(
   '/',
   authorize('society'),

@@ -294,6 +294,28 @@ export interface BookingDetail extends BookingSummary {
   updatedAt: string;
 }
 
+export interface VendorHireOption {
+  quotationId: string;
+  reference: string;
+  requestId: string;
+  requestReference: string;
+  requestTitle: string;
+  eventName: string | null;
+  eventDate: string | null;
+  totalPrice: number;
+  currency: string;
+  quotationStatus: string;
+  requestStatus: string;
+  canSelect: boolean;
+  canHire: boolean;
+  booking: BookingSummary | null;
+}
+
+export interface VendorHireOptionPage {
+  vendorId: string;
+  items: VendorHireOption[];
+}
+
 export interface BusyWindow {
   id: string;
   startsAt: string;

@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -120,7 +121,11 @@ describe('RequestApplications', () => {
 
   it('renders the server-generated comparison payload on demand', async () => {
     const user = userEvent.setup();
-    render(<RequestApplications requestId="request-1" />);
+    render(
+      <MemoryRouter>
+        <RequestApplications requestId="request-1" />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByText('2 quotations received')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Compare side by side' }));
@@ -136,7 +141,11 @@ describe('RequestApplications', () => {
   it('calls the select endpoint and reports success', async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    render(<RequestApplications requestId="request-1" canSelect onSelect={onSelect} />);
+    render(
+      <MemoryRouter>
+        <RequestApplications requestId="request-1" canSelect onSelect={onSelect} />
+      </MemoryRouter>,
+    );
 
     const buttons = await screen.findAllByRole('button', { name: 'Select this vendor' });
     await user.click(buttons[0] as HTMLElement);
@@ -171,7 +180,11 @@ describe('RequestApplications', () => {
     });
 
     const onBooked = vi.fn();
-    render(<RequestApplications requestId="request-1" canBook onBooked={onBooked} />);
+    render(
+      <MemoryRouter>
+        <RequestApplications requestId="request-1" canBook onBooked={onBooked} />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByText('Hire this vendor')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Check availability' }));

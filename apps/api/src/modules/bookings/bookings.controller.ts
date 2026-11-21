@@ -11,6 +11,7 @@ import {
   createBooking,
   getVendorAvailability,
   listMyBookings,
+  listVendorHireOptions,
 } from './bookings.service.js';
 
 export const createBookingHandler: RequestHandler = async (req, res) => {
@@ -40,6 +41,13 @@ export const getAvailabilityHandler: RequestHandler = async (req, res) => {
 
   const availability = await getVendorAvailability(req.params.vendorId as string, query.data);
   res.json({ data: availability });
+};
+
+export const listVendorHireOptionsHandler: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+
+  const options = await listVendorHireOptions(req.user, req.params.vendorId as string);
+  res.json({ data: options });
 };
 
 export const cancelBookingHandler: RequestHandler = async (req, res) => {

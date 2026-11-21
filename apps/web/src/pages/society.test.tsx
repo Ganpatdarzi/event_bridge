@@ -34,6 +34,17 @@ function request(id: string, status: string, title: string) {
   };
 }
 
+const vendorSummary = {
+  id: 'vendor-1',
+  businessName: 'Profile Catering Co',
+  description: 'Catering for campus events and formal dinners.',
+  city: 'Karachi',
+  serviceArea: 'Karachi',
+  verifiedAt: '2026-11-20T10:00:00.000Z',
+  categories: [category],
+  rating: { average: 4.8, count: 6 },
+};
+
 const requests = [
   request('req-open', 'partially_quoted', 'Open catering request'),
   request('req-selected', 'selected', 'Selected catering request'),
@@ -74,6 +85,12 @@ describe('SocietyPage lifecycle actions', () => {
 
     state.api.mockImplementation(async (path: string) => {
       if (path.startsWith('/requests?pageSize')) return paginated;
+      if (path.startsWith('/vendors?pageSize')) {
+        return {
+          items: [vendorSummary],
+          pagination: { page: 1, pageSize: 6, total: 1, totalPages: 1 },
+        };
+      }
       if (path === '/categories') return [];
       if (path === '/societies/me') {
         return {
@@ -153,5 +170,16 @@ describe('SocietyPage lifecycle actions', () => {
       expect(state.api).toHaveBeenCalledWith('/requests/req-selected/complete', { method: 'POST' });
     });
     expect(await screen.findByText('Engagement marked as completed.')).toBeInTheDocument();
+  });
+
+  it('shows vendor profiles with a direct link from the society dashboard', async () => {
+    renderPage();
+
+    expect(await screen.findByText('Vendor profiles')).toBeInTheDocument();
+    expect(screen.getByText('Profile Catering Co')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View profile →' })).toHaveAttribute(
+      'href',
+      '/vendors/vendor-1',
+    );
   });
 });

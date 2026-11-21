@@ -29,9 +29,10 @@ A web-based multi-vendor B2B marketplace that lets university societies send one
 >
 > **Frontend.** A working React + TypeScript frontend runs against the API: a marketing landing
 > page, a searchable vendor directory, login and registration for both societies and vendors, a
-> society dashboard that publishes requests, reviews/compares/selects vendor applications and hires
-> vendors for a time window, public vendor profiles with category/portfolio/review/availability
-> details, a vendor dashboard with verification, matched requests and an inline quotation form, an admin
+> society dashboard that publishes requests, reviews/compares/selects vendor applications, browses
+> vendor profiles and hires a vendor for a time window, public vendor profiles with
+> category/portfolio/review/availability details and inline select/hire actions for societies, a vendor
+> dashboard with verification, matched requests and an inline quotation form, an admin
 > console with platform stats, moderation and category oversight, and a notification bell with
 > unread counts. The bearer token is kept in memory; page reloads restore the session from the
 > httpOnly refresh cookie.
@@ -474,12 +475,13 @@ Planned, not shipped yet: `GET /quotations`, `GET /quotations/:id` and `PATCH /q
 
 ### Bookings (hire)
 
-| Method | Endpoint                           | Access          | Description                                    |
-| ------ | ---------------------------------- | --------------- | ---------------------------------------------- |
-| POST   | `/bookings`                        | Society         | Hire the vendor on a selected quotation        |
-| GET    | `/bookings/me`                     | Society, vendor | List your hires                                |
-| GET    | `/bookings/availability/:vendorId` | Authenticated   | Check busy windows for an optional `from`/`to` |
-| POST   | `/bookings/:id/cancel`             | Society, vendor | Cancel an active hire and free the window      |
+| Method | Endpoint                           | Access          | Description                                      |
+| ------ | ---------------------------------- | --------------- | ------------------------------------------------ |
+| POST   | `/bookings`                        | Society         | Hire the vendor on a selected quotation          |
+| GET    | `/bookings/me`                     | Society, vendor | List your hires                                  |
+| GET    | `/bookings/availability/:vendorId` | Authenticated   | Check busy windows for an optional `from`/`to`   |
+| GET    | `/bookings/options/:vendorId`      | Society         | List the caller's selectable/hireable quotations |
+| POST   | `/bookings/:id/cancel`             | Society, vendor | Cancel an active hire and free the window        |
 
 A booking stores the agreed amount from the selected quotation plus a half-open time window.
 Only `confirmed` bookings block other societies. Marking the request complete moves its confirmed

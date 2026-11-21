@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   api,
   type Category,
   type MySociety,
   type Paginated,
   type RequestListItem,
+  type VendorSummary,
 } from '../lib/api.js';
 import { useAuth } from '../lib/auth.js';
 import { useApiQuery } from '../lib/use-api.js';
@@ -27,6 +28,7 @@ import {
 import { AuthGate } from '../components/auth-gate.js';
 import { RequestApplications } from '../components/request-applications.js';
 import { ReviewForm } from '../components/review-form.js';
+import { VendorCard } from '../components/vendor-card.js';
 
 export function SocietyPage() {
   return (
@@ -38,10 +40,12 @@ export function SocietyPage() {
 
 function SocietyDashboard() {
   const { user, profile } = useAuth();
+  const { section } = useParams();
   const requests = useApiQuery(() => api<Paginated<RequestListItem>>('/requests?pageSize=50'), []);
   const categories = useApiQuery(() => api<Category[]>('/categories', { auth: false }), []);
   const societyProfile = useApiQuery(() => api<MySociety>('/societies/me'), []);
-  const [showForm, setShowForm] = useState(false);
+  const vendors = useApiQuery(() => api<Paginated<VendorSummary>>('/vendors?pageSize=6'), []);
+  const [showForm, setShowForm] = useState(section === 'create');
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [workingId, setWorkingId] = useState<string | null>(null);
@@ -75,6 +79,10 @@ function SocietyDashboard() {
       description: societyProfile.data.description ?? '',
     });
   }, [societyProfile.data]);
+
+  useEffect(() => {
+    if (section === 'create') setShowForm(true);
+  }, [section]);
 
   const items = requests.data?.items ?? [];
   const selectedRequests = items.filter((request) =>
@@ -380,6 +388,41 @@ function SocietyDashboard() {
                   <Badge tone="emerald">Selected</Badge>
                 </div>
               </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section id="vendor-profiles" className="mt-10">
+        <SectionHeading
+          title="Vendor profiles"
+          description="Inspect services, portfolio, reviews and live availability before choosing who to hire."
+          actions={
+            <Link to="/vendors" className={buttonStyles('ghost', 'sm')}>
+              Full directory
+            </Link>
+          }
+        />
+
+        {vendors.error && (
+          <div className="mt-4">
+            <Alert tone="error">{vendors.error}</Alert>
+          </div>
+        )}
+
+        {vendors.loading ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((key) => (
+              <div
+                key={key}
+                className="h-60 animate-pulse rounded-2xl bg-white ring-1 ring-slate-200"
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(vendors.data?.items ?? []).map((vendor) => (
+              <VendorCard key={vendor.id} vendor={vendor} />
             ))}
           </div>
         )}

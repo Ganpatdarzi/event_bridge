@@ -4,7 +4,6 @@ import {
   api,
   type BookingDetail,
   type BookingSummary,
-  type Quotation,
   type QuotationComparison,
   type RequestQuotationsPage,
   type VendorAvailability,
@@ -18,12 +17,18 @@ function toDateTimeInput(value: Date): string {
   return local.toISOString().slice(0, 16);
 }
 
-function HirePanel({
-  quotation,
+export interface HireTarget {
+  quotationId: string;
+  vendorId: string;
+  vendorName: string;
+}
+
+export function HirePanel({
+  target,
   booking,
   onBooked,
 }: {
-  quotation: Quotation;
+  target: HireTarget;
   booking: BookingSummary | null | undefined;
   onBooked?: () => void;
 }) {
@@ -51,7 +56,7 @@ function HirePanel({
         throw new Error('Choose a valid hire window first');
       }
       const result = await api<VendorAvailability>(
-        `/bookings/availability/${quotation.vendor.id}?from=${encodeURIComponent(
+        `/bookings/availability/${target.vendorId}?from=${encodeURIComponent(
           from.toISOString(),
         )}&to=${encodeURIComponent(to.toISOString())}`,
       );
@@ -70,7 +75,7 @@ function HirePanel({
       await api<BookingDetail>('/bookings', {
         method: 'POST',
         body: JSON.stringify({
-          quotationId: quotation.id,
+          quotationId: target.quotationId,
           startsAt: new Date(startsAt).toISOString(),
           endsAt: new Date(endsAt).toISOString(),
           ...(notes.trim() ? { notes: notes.trim() } : {}),
@@ -146,8 +151,8 @@ function HirePanel({
     <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 p-4">
       <p className="text-xs font-bold uppercase tracking-wider text-brand">Hire this vendor</p>
       <p className="mt-1 text-xs text-slate-600">
-        Reserve {quotation.vendor.businessName} for a specific window. Other societies cannot hire
-        them while this hire is active.
+        Reserve {target.vendorName} for a specific window. Other societies cannot hire them while
+        this hire is active.
       </p>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -482,7 +487,15 @@ export function RequestApplications({
               )}
 
               {quote.status === 'selected' && (canBook || booking) && (
-                <HirePanel quotation={quote} booking={booking} onBooked={onBooked} />
+                <HirePanel
+                  target={{
+                    quotationId: quote.id,
+                    vendorId: quote.vendor.id,
+                    vendorName: quote.vendor.businessName,
+                  }}
+                  booking={booking}
+                  onBooked={onBooked}
+                />
               )}
 
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">

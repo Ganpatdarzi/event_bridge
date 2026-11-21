@@ -197,6 +197,38 @@ describe('vendor hiring and availability', () => {
     expect(vendorId).not.toBe('');
   });
 
+  it('lists only the caller’s selected quotations as hire options from the vendor profile', async () => {
+    const first = await request(app)
+      .get(`/api/v1/bookings/options/${vendorId}`)
+      .set('Authorization', `Bearer ${firstToken}`)
+      .expect(200);
+    const second = await request(app)
+      .get(`/api/v1/bookings/options/${vendorId}`)
+      .set('Authorization', `Bearer ${secondToken}`)
+      .expect(200);
+
+    expect(first.body.data.vendorId).toBe(vendorId);
+    expect(first.body.data.items).toEqual([
+      expect.objectContaining({
+        quotationId: firstQuoteId,
+        requestId: firstRequestId,
+        requestTitle: 'First hire request',
+        canHire: true,
+        booking: null,
+      }),
+    ]);
+    expect(second.body.data.items.map((item: { quotationId: string }) => item.quotationId)).toEqual(
+      [secondQuoteId],
+    );
+  });
+
+  it('hides hire options from a vendor account', async () => {
+    await request(app)
+      .get(`/api/v1/bookings/options/${vendorId}`)
+      .set('Authorization', `Bearer ${vendorToken}`)
+      .expect(403);
+  });
+
   it('creates a confirmed hire and exposes it on the society request list', async () => {
     const response = await request(app)
       .post('/api/v1/bookings')

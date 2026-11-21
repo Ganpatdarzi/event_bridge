@@ -1,14 +1,17 @@
-import { and, asc, eq, gt, lt } from 'drizzle-orm';
-import type {
-  AvailabilityQuery,
-  BookingStatus,
-  CancelBookingInput,
-  CreateBookingInput,
-  UserRole,
+import { and, asc, desc, eq, gt, inArray, lt } from 'drizzle-orm';
+import {
+  QUOTATION_DECIDABLE,
+  REQUEST_ACCEPTS_DECISIONS,
+  type AvailabilityQuery,
+  type BookingStatus,
+  type CancelBookingInput,
+  type CreateBookingInput,
+  type UserRole,
 } from '@event-bridge/shared';
 import { db } from '../../db/index.js';
 import {
   bookings,
+  events,
   type NewNotification,
   quotations,
   serviceRequests,
@@ -62,6 +65,53 @@ export interface VendorAvailability {
   to: Date;
   available: boolean;
   busyWindows: BusyWindow[];
+}
+
+export interface BookingSummary {
+  id: string;
+  quotationId: string;
+  vendorId: string;
+  status: string;
+  startsAt: Date;
+  endsAt: Date;
+  amount: number;
+  currency: string;
+  requestId: string;
+}
+
+/** A society's quotations for one vendor, shown on that vendor's public profile. */
+export interface VendorHireOption {
+  quotationId: string;
+  reference: string;
+  requestId: string;
+  requestReference: string;
+  requestTitle: string;
+  eventName: string | null;
+  eventDate: string | null;
+  totalPrice: number;
+  currency: string;
+  quotationStatus: string;
+  requestStatus: string;
+  canSelect: boolean;
+  canHire: boolean;
+  booking: BookingSummary | null;
+}
+
+export interface VendorHireOptionPage {
+  vendorId: string;
+  items: VendorHireOption[];
+}
+
+interface BookingSummaryRow {
+  id: string;
+  quotationId: string;
+  vendorId: string;
+  status: string;
+  startsAt: Date;
+  endsAt: Date;
+  amount: string;
+  currency: string;
+  requestId: string;
 }
 
 function toNumber(value: string): number {
@@ -353,6 +403,137 @@ export async function getVendorAvailability(
     to,
     available: busy.length === 0,
     busyWindows: busy,
+  };
+}
+
+/**
+ * Quotations the signed-in society can act on directly from a vendor profile.
+ * Selection still follows the request lifecycle; hiring still requires a
+ * selected quotation, so this endpoint only exposes the society's own data.
+ */
+export async function listVendorHireOptions(
+  viewer: BookingViewer,
+  vendorId: string,
+): Promise<VendorHireOptionPage> {
+  if (viewer.role !== 'society') {
+    throw AppError.forbidden('Only societies can hire vendors');
+  }
+
+  const [society] = await db
+    .select({ id: societies.id })
+    .from(societies)
+    .where(eq(societies.userId, viewer.id))
+    .limit(1);
+
+  if (!society) return { vendorId, items: [] };
+
+  const rows = await db
+    .select({
+      quotationId: quotations.id,
+      reference: quotations.reference,
+      quotationStatus: quotations.status,
+      validUntil: quotations.validUntil,
+      totalPrice: quotations.totalPrice,
+      currency: quotations.currency,
+      requestId: serviceRequests.id,
+      requestReference: serviceRequests.reference,
+      requestTitle: serviceRequests.title,
+      requestStatus: serviceRequests.status,
+      selectedQuotationId: serviceRequests.selectedQuotationId,
+      eventName: events.name,
+      eventDate: events.eventDate,
+    })
+    .from(quotations)
+    .innerJoin(serviceRequests, eq(serviceRequests.id, quotations.requestId))
+    .leftJoin(events, eq(events.id, serviceRequests.eventId))
+    .where(
+      and(
+        eq(quotations.vendorId, vendorId),
+        eq(serviceRequests.societyId, society.id),
+        inArray(serviceRequests.status, ['partially_quoted', 'quoted', 'selected']),
+      ),
+    )
+    .orderBy(desc(serviceRequests.updatedAt));
+
+  const requestIds = [...new Set(rows.map((row) => row.requestId))];
+  const bookingRows: BookingSummaryRow[] = requestIds.length
+    ? await db
+        .select({
+          id: bookings.id,
+          quotationId: bookings.quotationId,
+          vendorId: bookings.vendorId,
+          status: bookings.status,
+          startsAt: bookings.startsAt,
+          endsAt: bookings.endsAt,
+          amount: bookings.amount,
+          currency: bookings.currency,
+          requestId: bookings.requestId,
+        })
+        .from(bookings)
+        .where(and(eq(bookings.vendorId, vendorId), inArray(bookings.requestId, requestIds)))
+    : [];
+
+  const bookingPriority: Record<string, number> = {
+    confirmed: 0,
+    completed: 1,
+    cancelled: 2,
+  };
+  const bookingByRequest = new Map<string, BookingSummary>();
+  for (const row of bookingRows) {
+    const booking: BookingSummary = {
+      id: row.id,
+      quotationId: row.quotationId,
+      vendorId: row.vendorId,
+      status: row.status,
+      startsAt: row.startsAt,
+      endsAt: row.endsAt,
+      amount: toNumber(row.amount),
+      currency: row.currency,
+      requestId: row.requestId,
+    };
+    const existing = bookingByRequest.get(row.requestId);
+    const priority = bookingPriority[row.status] ?? 3;
+    const existingPriority = existing ? (bookingPriority[existing.status] ?? 3) : 4;
+    if (!existing || priority < existingPriority) {
+      bookingByRequest.set(row.requestId, booking);
+    }
+  }
+
+  const now = new Date();
+  const selectableStatuses = new Set<string>(REQUEST_ACCEPTS_DECISIONS);
+  const decidableStatuses = new Set<string>(QUOTATION_DECIDABLE);
+
+  return {
+    vendorId,
+    items: rows.map((row) => {
+      const booking = bookingByRequest.get(row.requestId) ?? null;
+      const canSelect =
+        selectableStatuses.has(row.requestStatus) &&
+        decidableStatuses.has(row.quotationStatus) &&
+        (!row.validUntil || row.validUntil > now);
+      const canHire =
+        row.requestStatus === 'selected' &&
+        row.selectedQuotationId === row.quotationId &&
+        row.quotationStatus === 'selected' &&
+        booking?.status !== 'confirmed';
+
+      return {
+        quotationId: row.quotationId,
+        reference: row.reference,
+        requestId: row.requestId,
+        requestReference: row.requestReference,
+        requestTitle: row.requestTitle,
+        eventName: row.eventName,
+        eventDate: row.eventDate,
+        totalPrice: toNumber(row.totalPrice),
+        currency: row.currency,
+        quotationStatus: row.quotationStatus,
+        requestStatus: row.requestStatus,
+        canSelect,
+        canHire,
+        booking,
+      };
+    }),
   };
 }
 
