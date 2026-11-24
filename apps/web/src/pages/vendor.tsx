@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   api,
   type Category,
@@ -198,15 +198,6 @@ function VendorDashboard() {
     }
   }
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', to: '/vendor' },
-    { id: 'profile', label: 'Profile', to: '/vendor/profile' },
-    { id: 'requests', label: 'Requests', to: '/vendor/requests' },
-    { id: 'quotations', label: 'Quotations', to: '/vendor/quotations' },
-    { id: 'reviews', label: 'Reviews', to: '/vendor/reviews' },
-    { id: 'settings', label: 'Settings', to: '/vendor/settings' },
-  ];
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       <PageHeader
@@ -216,18 +207,6 @@ function VendorDashboard() {
         actions={status ? <StatusBadge status={status} /> : undefined}
       />
 
-      <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-        {tabs.map((tab) => (
-          <Link
-            key={tab.id}
-            to={tab.to}
-            className={buttonStyles(active === tab.id ? 'primary' : 'ghost', 'sm')}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </div>
-
       {active === 'overview' && (
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat
@@ -236,9 +215,9 @@ function VendorDashboard() {
             hint="Admin-reviewed"
           />
           <Stat
-            label="Open invitations"
+            label="New requests"
             value={status === 'verified' && !requestBoard.loading ? invited : '—'}
-            hint="New requests"
+            hint="Ready for a quote"
           />
           <Stat
             label="Quoted"
@@ -511,14 +490,14 @@ function VendorDashboard() {
       {active === 'requests' && (
         <section id="requests" className="mt-10">
           <SectionHeading
-            title="Matched requests"
-            description="Requests distributed to you based on your service categories."
+            title="Requests for you"
+            description="Open requests in your service categories. Submit a quote when one interests you."
           />
 
           {status !== 'verified' ? (
             <EmptyState
               title="Requests unlock after verification"
-              description="Once an administrator approves your business, matching requests will appear here."
+              description="Once an administrator approves your business, requests in your categories will appear here."
             />
           ) : (
             <>
@@ -528,13 +507,13 @@ function VendorDashboard() {
                 You can revise your quote until the request closes.
               </div>
 
-              {requestBoard.loading && <LoadingBlock label="Loading matched requests…" />}
+              {requestBoard.loading && <LoadingBlock label="Loading requests…" />}
               {requestBoard.error && <Alert tone="error">{requestBoard.error}</Alert>}
 
               {!requestBoard.loading && items.length === 0 && !requestBoard.error && (
                 <EmptyState
-                  title="No matched requests yet"
-                  description="New opportunities in your categories will show up here automatically."
+                  title="No requests yet"
+                  description="Open requests in your categories will appear here automatically."
                 />
               )}
 

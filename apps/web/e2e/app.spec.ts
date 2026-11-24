@@ -10,6 +10,21 @@ const user = {
   status: 'active',
   createdAt: '2026-01-01T00:00:00.000Z',
 };
+const vendorUser = {
+  ...user,
+  id: 'user-2',
+  name: 'Vendor User',
+  email: 'vendor@eventbridge.test',
+  role: 'vendor' as const,
+};
+
+const adminUser = {
+  ...user,
+  id: 'user-3',
+  name: 'Admin User',
+  email: 'admin@eventbridge.test',
+  role: 'admin' as const,
+};
 
 const request = {
   id: 'req-1',
@@ -178,20 +193,83 @@ async function mockApi(page: Page) {
       status = 401;
       body = { error: { code: 'UNAUTHORIZED', message: 'No session' } };
     } else if (path === '/api/v1/auth/login') {
+      const { email } = (route.request().postDataJSON() ?? {}) as { email?: string };
+      const isVendor = email === vendorUser.email;
+      const isAdmin = email === adminUser.email;
       body = {
         data: {
           accessToken: 'e2e-access-token',
-          user,
-          profile: {
-            type: 'society',
-            id: 'soc-1',
-            name: 'Test Society',
-            institution: 'Test University',
-          },
+          user: isVendor ? vendorUser : isAdmin ? adminUser : user,
+          profile: isVendor
+            ? {
+                type: 'vendor',
+                id: vendor.id,
+                name: vendor.businessName,
+                verificationStatus: 'verified',
+              }
+            : isAdmin
+              ? null
+              : {
+                  type: 'society',
+                  id: 'soc-1',
+                  name: 'Test Society',
+                  institution: 'Test University',
+                },
         },
       };
     } else if (path === '/api/v1/categories') {
       body = { data: [category] };
+    } else if (path === '/api/v1/vendors/me') {
+      body = {
+        data: {
+          id: vendor.id,
+          businessName: vendor.businessName,
+          description: 'Catering for campus events and formal gala dinners.',
+          city: vendor.city,
+          serviceArea: vendor.serviceArea,
+          verifiedAt: '2026-01-01T00:00:00.000Z',
+          categories: [category],
+          rating: { average: 4.8, count: 12 },
+          contactPerson: vendor.contactPerson,
+          contactPhone: vendor.contactPhone,
+          verificationStatus: 'verified',
+          rejectionReason: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          portfolio: [],
+        },
+      };
+    } else if (path === '/api/v1/vendor/requests') {
+      body = {
+        data: {
+          items: [
+            {
+              ...request,
+              distribution: {
+                status: 'invited',
+                viewedAt: null,
+                notifiedAt: '2026-11-20T10:00:00.000Z',
+              },
+              hasQuoted: false,
+            },
+          ],
+          pagination: { page: 1, pageSize: 50, total: 1, totalPages: 1 },
+        },
+      };
+    } else if (path === '/api/v1/quotations/mine') {
+      body = {
+        data: { items: [], pagination: { page: 1, pageSize: 50, total: 0, totalPages: 1 } },
+      };
+    } else if (path === '/api/v1/admin/stats') {
+      body = {
+        data: {
+          users: { total: 3, byRole: { society: 1, vendor: 1, admin: 1 }, byStatus: {} },
+          vendors: { total: 1, byStatus: { verified: 1 } },
+          requests: { total: 2, byStatus: { open: 1, quoted: 1 } },
+          categories: { total: 1, active: 1 },
+          quotations: { total: 0 },
+        },
+      };
     } else if (/^\/api\/v1\/vendors\/[^/]+\/reviews$/.test(path)) {
       body = { data: [] };
     } else if (/^\/api\/v1\/vendors\/[^/]+$/.test(path) && !path.endsWith('/me')) {
@@ -466,4 +544,37 @@ test('layout and navigation adapt to the viewport', async ({ page }) => {
   await expect
     .poll(async () => page.evaluate(() => document.documentElement.scrollWidth))
     .toBeLessThanOrEqual(width + 1);
+});
+
+test('vendor opens dashboard pages from the header without duplicate tabs', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('vendor@eventbridge.test');
+  await page.getByLabel('Password').fill('Vendor123!');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/vendor$/);
+
+  const isMobile = page.viewportSize()!.width < 768;
+  if (isMobile) await page.getByRole('button', { name: 'Open menu' }).click();
+  const nav = page.getByRole('navigation', { name: isMobile ? 'Mobile' : 'Main' });
+
+  for (const label of ['Profile', 'Requests', 'Quotations', 'Reviews', 'Settings']) {
+    await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole('link', { name: 'Requests', exact: true })).toHaveCount(1);
+
+  await nav.getByRole('link', { name: 'Requests', exact: true }).click();
+  await expect(page).toHaveURL(/\/vendor\/requests$/);
+  await expect(page.getByRole('heading', { name: 'Requests for you' })).toBeVisible();
+});
+
+test('admin dashboard has no requests tab', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('admin@eventbridge.test');
+  await page.getByLabel('Password').fill('Admin123!');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+
+  await expect(page.getByRole('button', { name: 'Requests', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Requests', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reviews', exact: true })).toBeVisible();
 });

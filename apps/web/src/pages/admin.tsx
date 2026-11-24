@@ -8,7 +8,6 @@ import {
   type AuditLogEntry,
   type Category,
   type Paginated,
-  type RequestListItem,
   type SystemSetting,
   type VendorCategory,
 } from '../lib/api.js';
@@ -30,7 +29,6 @@ import {
   StatusBadge,
 } from '../components/ui.js';
 import { AuthGate } from '../components/auth-gate.js';
-import { RequestApplications } from '../components/request-applications.js';
 
 export function AdminPage() {
   return (
@@ -45,7 +43,6 @@ const TABS = [
   { id: 'users', label: 'Users' },
   { id: 'vendors', label: 'Vendors' },
   { id: 'categories', label: 'Categories' },
-  { id: 'requests', label: 'Requests' },
   { id: 'reviews', label: 'Reviews' },
   { id: 'activity', label: 'Activity' },
   { id: 'settings', label: 'Settings' },
@@ -92,7 +89,6 @@ function AdminDashboard() {
         {tab === 'users' && <UsersSection />}
         {tab === 'vendors' && <VendorsSection />}
         {tab === 'categories' && <CategoriesSection />}
-        {tab === 'requests' && <RequestsSection />}
         {tab === 'reviews' && <ReviewsSection />}
         {tab === 'activity' && <ActivitySection />}
         {tab === 'settings' && <SettingsSection />}
@@ -709,109 +705,6 @@ function CategoriesSection() {
                 {category.isActive === false ? 'Activate' : 'Deactivate'}
               </button>
             </div>
-          </Card>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* ---------------- Requests ---------------- */
-
-function RequestsSection() {
-  const [status, setStatus] = useState('');
-  const [committed, setCommitted] = useState('');
-  const [page, setPage] = useState(1);
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  const query = useApiQuery(
-    () =>
-      api<Paginated<RequestListItem>>(
-        `/requests?${new URLSearchParams({
-          ...(committed ? { status: committed } : {}),
-          page: String(page),
-          pageSize: '20',
-        }).toString()}`,
-      ),
-    [committed, page],
-  );
-
-  return (
-    <section>
-      <SectionHeading
-        title="Quotation requests"
-        description="Monitor every request and its applications."
-      />
-      <Card className="mt-4 p-4">
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <select className={inputClass} value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">All statuses</option>
-            <option value="draft">Draft</option>
-            <option value="submitted">Submitted</option>
-            <option value="open">Open</option>
-            <option value="partially_quoted">Partially quoted</option>
-            <option value="quoted">Quoted</option>
-            <option value="selected">Selected</option>
-            <option value="completed">Completed</option>
-            <option value="closed">Closed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <button
-            type="button"
-            className={`${buttonStyles('primary', 'sm')} self-end justify-self-start sm:justify-self-end`}
-            onClick={() => {
-              setCommitted(status);
-              setPage(1);
-            }}
-          >
-            Apply
-          </button>
-        </div>
-      </Card>
-
-      {query.loading && (
-        <div className="mt-4">
-          <LoadingBlock label="Loading requests…" />
-        </div>
-      )}
-      {query.error && (
-        <div className="mt-4">
-          <Alert tone="error">{query.error}</Alert>
-        </div>
-      )}
-
-      <div className="mt-4 space-y-3">
-        {query.data?.items.map((request) => (
-          <Card key={request.id} className="p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <StatusBadge status={request.status} />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    {request.reference}
-                  </span>
-                </div>
-                <h3 className="mt-2 text-base font-semibold text-slate-900">{request.title}</h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  {request.society.name} · {request.category.name}
-                  {request.event?.eventDate ? ` · ${formatDate(request.event.eventDate)}` : ''}
-                </p>
-                <p className="mt-2 text-xs text-slate-400">
-                  {request.quotationCount} quotation{request.quotationCount === 1 ? '' : 's'}{' '}
-                  received
-                </p>
-              </div>
-              {request.quotationCount > 0 && (
-                <button
-                  type="button"
-                  className={buttonStyles('secondary', 'sm')}
-                  onClick={() => setExpanded(expanded === request.id ? null : request.id)}
-                >
-                  {expanded === request.id ? 'Hide applications' : 'Review applications'}
-                </button>
-              )}
-            </div>
-            {expanded === request.id && <RequestApplications requestId={request.id} />}
           </Card>
         ))}
       </div>
