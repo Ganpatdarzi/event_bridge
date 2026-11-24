@@ -77,6 +77,23 @@ export const restoreVendor: RequestHandler = async (req, res) => {
   res.json({ data: vendor });
 };
 
+export const deactivateVendor: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+  const vendor = await reviewVendor(
+    req.user.id,
+    req.params.id as string,
+    'deactivate',
+    optionalReason(req.body),
+  );
+  res.json({ data: vendor });
+};
+
+export const activateVendor: RequestHandler = async (req, res) => {
+  if (!req.user) throw AppError.unauthenticated();
+  const vendor = await reviewVendor(req.user.id, req.params.id as string, 'activate');
+  res.json({ data: vendor });
+};
+
 export const listAccounts: RequestHandler = async (req, res) => {
   const page = parsePagination(req.query);
   const filter = adminUserQuerySchema.parse(req.query);

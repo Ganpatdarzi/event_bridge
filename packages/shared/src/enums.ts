@@ -33,7 +33,7 @@ export const VENDOR_TRANSITIONS: Record<VendorStatus, VendorStatus[]> = {
   verified: ['suspended', 'deactivated'],
   suspended: ['verified', 'deactivated'],
   rejected: ['pending_review'],
-  deactivated: [],
+  deactivated: ['verified'],
 };
 
 /* ------------------------------------------------------------------ */

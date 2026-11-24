@@ -16,6 +16,8 @@ export const adminVendorActionSchema = z.enum([
   'request_changes',
   'suspend',
   'restore',
+  'deactivate',
+  'activate',
 ]);
 
 export const adminUserActionSchema = z.enum(['suspend', 'reactivate', 'deactivate']);

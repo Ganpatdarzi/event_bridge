@@ -260,6 +260,57 @@ async function mockApi(page: Page) {
       body = {
         data: { items: [], pagination: { page: 1, pageSize: 50, total: 0, totalPages: 1 } },
       };
+    } else if (path === '/api/v1/admin/vendors') {
+      body = {
+        data: {
+          items: [
+            {
+              id: 'vendor-active',
+              businessName: 'Active Catering',
+              description: 'A verified catering provider.',
+              city: 'Karachi',
+              serviceArea: 'Karachi',
+              verificationStatus: 'verified',
+              rejectionReason: null,
+              contactPerson: 'Adil',
+              contactPhone: '03001234567',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              categories: [category],
+              user: {
+                id: 'user-2',
+                name: 'Vendor User',
+                email: 'vendor@eventbridge.test',
+                status: 'active',
+              },
+            },
+            {
+              id: 'vendor-deactivated',
+              businessName: "Patel's Event Management",
+              description: 'A deactivated event management provider.',
+              city: 'Karachi',
+              serviceArea: 'Karachi',
+              verificationStatus: 'deactivated',
+              rejectionReason: null,
+              contactPerson: 'Patel',
+              contactPhone: '03009876543',
+              createdAt: '2026-01-02T00:00:00.000Z',
+              categories: [category],
+              user: {
+                id: 'user-4',
+                name: 'Patel Event Management',
+                email: 'vendor@eventbridge.test',
+                status: 'deactivated',
+              },
+            },
+          ],
+          pagination: { page: 1, pageSize: 20, total: 2, totalPages: 1 },
+        },
+      };
+    } else if (
+      /^\/api\/v1\/admin\/vendors\/[^/]+\/(activate|deactivate)$/.test(path) &&
+      method === 'POST'
+    ) {
+      body = { data: {} };
     } else if (path === '/api/v1/admin/stats') {
       body = {
         data: {
@@ -577,4 +628,22 @@ test('admin dashboard has no requests tab', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Requests', exact: true })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Requests', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Reviews', exact: true })).toBeVisible();
+});
+
+test('admin can activate and deactivate vendors', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('admin@eventbridge.test');
+  await page.getByLabel('Password').fill('Admin123!');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+
+  await page.getByRole('button', { name: 'Vendors', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Activate', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Deactivate', exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Activate', exact: true }).click();
+  await expect(page.getByText("Patel's Event Management updated.")).toBeVisible();
+
+  await page.getByRole('button', { name: 'Deactivate', exact: true }).click();
+  await expect(page.getByText('Active Catering updated.')).toBeVisible();
 });

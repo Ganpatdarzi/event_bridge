@@ -275,6 +275,8 @@ describe('mandatory security test cases', () => {
       ['post', `/admin/vendors/${fakeId}/request-changes`],
       ['post', `/admin/vendors/${fakeId}/suspend`],
       ['post', `/admin/vendors/${fakeId}/restore`],
+      ['post', `/admin/vendors/${fakeId}/deactivate`],
+      ['post', `/admin/vendors/${fakeId}/activate`],
       ['post', `/admin/users/${fakeId}/suspend`],
       ['post', `/admin/users/${fakeId}/reactivate`],
       ['post', `/admin/users/${fakeId}/deactivate`],
@@ -307,5 +309,51 @@ describe('mandatory security test cases', () => {
       .get('/api/v1/admin/stats')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
+  });
+
+  it('lets an admin deactivate and reactivate a vendor', async () => {
+    const { rows } = await pg().query<{ id: string; userId: string }>(
+      `select v.id, v.user_id as "userId"
+       from vendors v
+       join users u on u.id = v.user_id
+       where u.email = $1`,
+      [vendorB.email],
+    );
+    const vendorId = rows[0]?.id;
+    const userId = rows[0]?.userId;
+    expect(vendorId).toBeTruthy();
+    expect(userId).toBeTruthy();
+
+    const deactivated = await request(app)
+      .post(`/api/v1/admin/vendors/${vendorId}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ reason: 'Security test deactivation' })
+      .expect(200);
+    expect(deactivated.body.data.verificationStatus).toBe('deactivated');
+    expect(deactivated.body.data.user.status).toBe('deactivated');
+
+    const activeTokens = await pg().query<{ count: number }>(
+      `select count(*)::int as count
+       from refresh_tokens
+       where user_id = $1 and revoked_at is null`,
+      [userId],
+    );
+    expect(activeTokens.rows[0]?.count).toBe(0);
+
+    const activated = await request(app)
+      .post(`/api/v1/admin/vendors/${vendorId}/activate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(activated.body.data.verificationStatus).toBe('verified');
+    expect(activated.body.data.user.status).toBe('active');
+
+    const audit = await pg().query<{ action: string }>(
+      `select action
+       from audit_logs
+       where target_id = $1 and action in ('vendor.deactivated', 'vendor.activated')
+       order by created_at`,
+      [vendorId],
+    );
+    expect(audit.rows.map((row) => row.action)).toEqual(['vendor.deactivated', 'vendor.activated']);
   });
 });

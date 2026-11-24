@@ -101,6 +101,8 @@ const VENDOR_TARGET: Record<AdminVendorAction, VendorStatus> = {
   request_changes: 'changes_requested',
   suspend: 'suspended',
   restore: 'verified',
+  deactivate: 'deactivated',
+  activate: 'verified',
 };
 
 const VENDOR_VERB: Record<AdminVendorAction, string> = {
@@ -109,6 +111,8 @@ const VENDOR_VERB: Record<AdminVendorAction, string> = {
   request_changes: 'request changes for',
   suspend: 'suspend',
   restore: 'restore',
+  deactivate: 'deactivate',
+  activate: 'activate',
 };
 
 const VENDOR_AUDIT_ACTION: Record<AdminVendorAction, string> = {
@@ -117,6 +121,8 @@ const VENDOR_AUDIT_ACTION: Record<AdminVendorAction, string> = {
   request_changes: 'vendor.changes_requested',
   suspend: 'vendor.suspended',
   restore: 'vendor.restored',
+  deactivate: 'vendor.deactivated',
+  activate: 'vendor.activated',
 };
 
 function vendorSelection() {
@@ -284,23 +290,43 @@ export async function reviewVendor(
       );
     }
 
-    if (action === 'approve' || action === 'restore') {
-      const [account] = await tx
-        .select({ status: users.status })
-        .from(users)
-        .where(eq(users.id, vendor.userId))
-        .limit(1);
+    const [account] = await tx
+      .select({ id: users.id, status: users.status })
+      .from(users)
+      .where(eq(users.id, vendor.userId))
+      .limit(1);
 
-      if (!account) {
-        throw AppError.notFound('Vendor account not found');
-      }
+    if (!account) {
+      throw AppError.notFound('Vendor account not found');
+    }
 
-      if (account.status !== 'active') {
-        throw AppError.ruleViolation(
-          'Reactivate this vendor account before verifying the business.',
-        );
-      }
+    let accountStatusChange: { from: AccountStatus; to: AccountStatus } | null = null;
 
+    if ((action === 'approve' || action === 'restore') && account.status !== 'active') {
+      throw AppError.ruleViolation('Reactivate this vendor account before verifying the business.');
+    }
+
+    if (action === 'activate' && account.status !== 'active') {
+      await tx
+        .update(users)
+        .set({ status: 'active', updatedAt: new Date() })
+        .where(eq(users.id, account.id));
+      accountStatusChange = { from: account.status, to: 'active' };
+    }
+
+    if (action === 'deactivate' && account.status !== 'deactivated') {
+      await tx
+        .update(users)
+        .set({ status: 'deactivated', updatedAt: new Date() })
+        .where(eq(users.id, account.id));
+      await tx
+        .update(refreshTokens)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(refreshTokens.userId, account.id), isNull(refreshTokens.revokedAt)));
+      accountStatusChange = { from: account.status, to: 'deactivated' };
+    }
+
+    if (action === 'approve' || action === 'restore' || action === 'activate') {
       const [categoryCount] = await tx
         .select({ count: sql<number>`count(*)::int` })
         .from(vendorCategories)
@@ -318,13 +344,11 @@ export async function reviewVendor(
       updatedAt: new Date(),
     };
 
-    if (action === 'approve' || action === 'restore') {
+    if (action === 'approve' || action === 'restore' || action === 'activate') {
       patch.verifiedBy = actorId;
       patch.verifiedAt = new Date();
       patch.rejectionReason = null;
-    } else if (action === 'reject' || action === 'request_changes') {
-      patch.rejectionReason = reason ?? null;
-    } else if (action === 'suspend') {
+    } else {
       patch.rejectionReason = reason ?? null;
     }
 
@@ -340,6 +364,7 @@ export async function reviewVendor(
         to: targetStatus,
         reason: reason ?? null,
         businessName: vendor.businessName,
+        accountStatus: accountStatusChange,
       },
     });
   });

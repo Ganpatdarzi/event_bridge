@@ -6,8 +6,10 @@ import { validateBody, validateParams } from '../../middleware/validate.js';
 import { listCategoriesForAdmin } from '../categories/categories.controller.js';
 import { systemSettingUpdateSchema } from './admin.schema.js';
 import {
+  activateVendor,
   approveVendor,
   deactivateUser,
+  deactivateVendor,
   getAuditLogs,
   getStats,
   hideReview,
@@ -50,6 +52,13 @@ adminRouter.post(
   requestVendorChanges,
 );
 adminRouter.post('/vendors/:id/suspend', validateParams(idParams), suspendVendor);
+adminRouter.post(
+  '/vendors/:id/deactivate',
+  validateParams(idParams),
+  validateBody(optionalReasonSchema),
+  deactivateVendor,
+);
+adminRouter.post('/vendors/:id/activate', validateParams(idParams), activateVendor);
 adminRouter.post('/vendors/:id/restore', validateParams(idParams), restoreVendor);
 
 adminRouter.get('/users', listAccounts);

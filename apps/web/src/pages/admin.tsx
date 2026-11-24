@@ -406,7 +406,7 @@ function VendorsSection() {
     <section>
       <SectionHeading
         title="Vendor management"
-        description="Review applications and manage vendor status."
+        description="Review applications and manage vendor availability."
       />
       {notice && (
         <div className="mt-4">
@@ -484,51 +484,71 @@ function VendorsSection() {
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={buttonStyles('primary', 'sm')}
-                  disabled={busy !== null}
-                  onClick={() => void review(vendor, 'approve')}
-                >
-                  {busy === `approve-${vendor.id}` ? '…' : 'Approve'}
-                </button>
-                <button
-                  type="button"
-                  className={buttonStyles('secondary', 'sm')}
-                  disabled={busy !== null}
-                  onClick={() =>
-                    void review(vendor, 'request-changes', 'Please update your profile.')
-                  }
-                >
-                  {busy === `request-changes-${vendor.id}` ? '…' : 'Request changes'}
-                </button>
-                <button
-                  type="button"
-                  className={buttonStyles('secondary', 'sm')}
-                  disabled={busy !== null}
-                  onClick={() => void review(vendor, 'suspend')}
-                >
-                  {busy === `suspend-${vendor.id}` ? '…' : 'Suspend'}
-                </button>
-                <button
-                  type="button"
-                  className={buttonStyles('ghost', 'sm')}
-                  disabled={busy !== null}
-                  onClick={() => void review(vendor, 'restore')}
-                >
-                  {busy === `restore-${vendor.id}` ? '…' : 'Restore'}
-                </button>
-                <button
-                  type="button"
-                  className={buttonStyles('danger', 'sm')}
-                  disabled={busy !== null}
-                  onClick={() => {
-                    setRejectingId(rejectingId === vendor.id ? null : vendor.id);
-                    setReason('');
-                  }}
-                >
-                  Reject
-                </button>
+                {vendor.verificationStatus === 'pending_review' && (
+                  <>
+                    <button
+                      type="button"
+                      className={buttonStyles('primary', 'sm')}
+                      disabled={busy !== null}
+                      onClick={() => void review(vendor, 'approve')}
+                    >
+                      {busy === `approve-${vendor.id}` ? '…' : 'Approve'}
+                    </button>
+                    <button
+                      type="button"
+                      className={buttonStyles('secondary', 'sm')}
+                      disabled={busy !== null}
+                      onClick={() =>
+                        void review(vendor, 'request-changes', 'Please update your profile.')
+                      }
+                    >
+                      {busy === `request-changes-${vendor.id}` ? '…' : 'Request changes'}
+                    </button>
+                    <button
+                      type="button"
+                      className={buttonStyles('danger', 'sm')}
+                      disabled={busy !== null}
+                      onClick={() => {
+                        setRejectingId(rejectingId === vendor.id ? null : vendor.id);
+                        setReason('');
+                      }}
+                    >
+                      Reject
+                    </button>
+                  </>
+                )}
+                {vendor.verificationStatus === 'verified' && (
+                  <button
+                    type="button"
+                    className={buttonStyles('secondary', 'sm')}
+                    disabled={busy !== null}
+                    onClick={() => void review(vendor, 'suspend')}
+                  >
+                    {busy === `suspend-${vendor.id}` ? '…' : 'Suspend'}
+                  </button>
+                )}
+                {(vendor.verificationStatus === 'verified' ||
+                  vendor.verificationStatus === 'suspended') && (
+                  <button
+                    type="button"
+                    className={buttonStyles('danger', 'sm')}
+                    disabled={busy !== null}
+                    onClick={() => void review(vendor, 'deactivate')}
+                  >
+                    {busy === `deactivate-${vendor.id}` ? '…' : 'Deactivate'}
+                  </button>
+                )}
+                {(vendor.verificationStatus === 'suspended' ||
+                  vendor.verificationStatus === 'deactivated') && (
+                  <button
+                    type="button"
+                    className={buttonStyles('primary', 'sm')}
+                    disabled={busy !== null}
+                    onClick={() => void review(vendor, 'activate')}
+                  >
+                    {busy === `activate-${vendor.id}` ? '…' : 'Activate'}
+                  </button>
+                )}
               </div>
             </div>
 
