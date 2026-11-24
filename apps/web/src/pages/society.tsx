@@ -5,6 +5,7 @@ import {
   type Category,
   type MySociety,
   type Paginated,
+  type RequestDetail,
   type RequestListItem,
   type VendorSummary,
 } from '../lib/api.js';
@@ -46,6 +47,7 @@ function SocietyDashboard() {
   const societyProfile = useApiQuery(() => api<MySociety>('/societies/me'), []);
   const vendors = useApiQuery(() => api<Paginated<VendorSummary>>('/vendors?pageSize=6'), []);
   const [showForm, setShowForm] = useState(section === 'create');
+  const [editingDraft, setEditingDraft] = useState<RequestDetail | null>(null);
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [workingId, setWorkingId] = useState<string | null>(null);
@@ -81,7 +83,10 @@ function SocietyDashboard() {
   }, [societyProfile.data]);
 
   useEffect(() => {
-    if (section === 'create') setShowForm(true);
+    if (section === 'create') {
+      setEditingDraft(null);
+      setShowForm(true);
+    }
   }, [section]);
 
   const items = requests.data?.items ?? [];
@@ -137,6 +142,23 @@ function SocietyDashboard() {
     }
   }
 
+  async function openDraft(requestId: string) {
+    setWorkingId(requestId);
+    setActionNotice(null);
+    try {
+      const detail = await api<RequestDetail>(`/requests/${requestId}`);
+      setEditingDraft(detail);
+      setShowForm(true);
+    } catch (caught) {
+      setActionNotice({
+        tone: 'error',
+        text: caught instanceof Error ? caught.message : 'Unable to open the draft',
+      });
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
   const active = items.filter((request) =>
     ['submitted', 'open', 'partially_quoted'].includes(request.status),
   ).length;
@@ -153,7 +175,10 @@ function SocietyDashboard() {
           <button
             type="button"
             className={buttonStyles('primary', 'md')}
-            onClick={() => setShowForm((value) => !value)}
+            onClick={() => {
+              setEditingDraft(null);
+              setShowForm((value) => !value);
+            }}
           >
             {showForm ? 'Close form' : 'New request'}
           </button>
@@ -178,12 +203,19 @@ function SocietyDashboard() {
       {showForm && (
         <div id="create" className="mt-8">
           <CreateRequestForm
+            key={editingDraft?.id ?? 'new'}
             categories={categories.data ?? []}
-            onCreated={() => {
+            draft={editingDraft}
+            onSaved={(message) => {
               setShowForm(false);
+              setEditingDraft(null);
+              setActionNotice({ tone: 'success', text: message });
               requests.reload();
             }}
-            onCancel={() => setShowForm(false)}
+            onCancel={() => {
+              setShowForm(false);
+              setEditingDraft(null);
+            }}
           />
         </div>
       )}
@@ -282,6 +314,16 @@ function SocietyDashboard() {
                       } received`}
                 </p>
                 <div className="flex flex-wrap gap-2">
+                  {request.status === 'draft' && (
+                    <button
+                      type="button"
+                      disabled={workingId === request.id}
+                      className={buttonStyles('primary', 'sm')}
+                      onClick={() => void openDraft(request.id)}
+                    >
+                      {workingId === request.id ? 'Opening…' : 'Edit draft'}
+                    </button>
+                  )}
                   {['open', 'partially_quoted'].includes(request.status) &&
                     request.quotationCount > 0 && (
                       <button
@@ -588,26 +630,38 @@ function toNumberOrNull(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function toDateTimeLocal(iso: string | null): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`;
+}
+
 function CreateRequestForm({
   categories,
-  onCreated,
+  draft,
+  onSaved,
   onCancel,
 }: {
   categories: Category[];
-  onCreated: () => void;
+  draft: RequestDetail | null;
+  onSaved: (message: string) => void;
   onCancel: () => void;
 }) {
-  const [title, setTitle] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [eventName, setEventName] = useState('');
-  const [eventDate, setEventDate] = useState('');
-  const [location, setLocation] = useState('');
-  const [attendance, setAttendance] = useState('');
-  const [budgetMin, setBudgetMin] = useState('');
-  const [budgetMax, setBudgetMax] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [deadline, setDeadline] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState(draft?.title ?? '');
+  const [categoryId, setCategoryId] = useState(draft?.category.id ?? '');
+  const [eventName, setEventName] = useState(draft?.event?.name ?? '');
+  const [eventDate, setEventDate] = useState(draft?.event?.eventDate ?? '');
+  const [location, setLocation] = useState(draft?.event?.location ?? '');
+  const [attendance, setAttendance] = useState(draft?.event?.expectedAttendance?.toString() ?? '');
+  const [budgetMin, setBudgetMin] = useState(draft?.budgetMin?.toString() ?? '');
+  const [budgetMax, setBudgetMax] = useState(draft?.budgetMax?.toString() ?? '');
+  const [quantity, setQuantity] = useState(draft?.quantity?.toString() ?? '');
+  const [deadline, setDeadline] = useState(toDateTimeLocal(draft?.responseDeadline ?? null));
+  const [description, setDescription] = useState(draft?.description ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<'draft' | 'publish' | null>(null);
 
@@ -616,6 +670,11 @@ function CreateRequestForm({
 
     if (!categoryId) {
       setError('Choose a service category.');
+      return;
+    }
+
+    if (!eventName.trim() || !eventDate || !location.trim()) {
+      setError('Add the event name, date and location before saving.');
       return;
     }
 
@@ -637,40 +696,58 @@ function CreateRequestForm({
 
     setSaving(submit ? 'publish' : 'draft');
     try {
-      await api('/requests', {
-        method: 'POST',
-        body: {
-          event: {
-            name: eventName.trim(),
-            eventDate,
-            location: location.trim(),
-            ...(attendance.trim() ? { expectedAttendance: Number(attendance) } : {}),
-          },
-          categoryId,
-          title: title.trim(),
-          description: description.trim(),
-          budgetMin: toNumberOrNull(budgetMin),
-          budgetMax: toNumberOrNull(budgetMax),
-          ...(quantity.trim() ? { quantity: Number(quantity) } : {}),
-          responseDeadline: deadline ? new Date(deadline).toISOString() : null,
-          submit,
-        },
-      });
+      const event = {
+        name: eventName.trim(),
+        eventDate,
+        location: location.trim(),
+        ...(attendance.trim() ? { expectedAttendance: Number(attendance) } : {}),
+      };
+      const deadlineIso = deadline ? new Date(deadline).toISOString() : null;
 
-      setTitle('');
-      setCategoryId('');
-      setEventName('');
-      setEventDate('');
-      setLocation('');
-      setAttendance('');
-      setBudgetMin('');
-      setBudgetMax('');
-      setQuantity('');
-      setDeadline('');
-      setDescription('');
-      onCreated();
+      if (draft) {
+        await api(`/requests/${draft.id}`, {
+          method: 'PATCH',
+          body: {
+            event,
+            categoryId,
+            title: title.trim(),
+            description: description.trim(),
+            budgetMin: toNumberOrNull(budgetMin),
+            budgetMax: toNumberOrNull(budgetMax),
+            quantity: quantity.trim() ? Number(quantity) : null,
+            responseDeadline: deadlineIso,
+          },
+        });
+
+        if (submit) {
+          await api(`/requests/${draft.id}/submit`, { method: 'POST' });
+        }
+      } else {
+        await api('/requests', {
+          method: 'POST',
+          body: {
+            event,
+            categoryId,
+            title: title.trim(),
+            description: description.trim(),
+            budgetMin: toNumberOrNull(budgetMin),
+            budgetMax: toNumberOrNull(budgetMax),
+            ...(quantity.trim() ? { quantity: Number(quantity) } : {}),
+            responseDeadline: deadlineIso,
+            submit,
+          },
+        });
+      }
+
+      let message = 'Draft saved.';
+      if (draft) {
+        message = submit ? 'Draft updated and published.' : 'Draft updated.';
+      } else if (submit) {
+        message = 'Request published.';
+      }
+      onSaved(message);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to create the request');
+      setError(caught instanceof Error ? caught.message : 'Unable to save the request');
     } finally {
       setSaving(null);
     }
@@ -679,8 +756,12 @@ function CreateRequestForm({
   return (
     <Card className="p-6">
       <SectionHeading
-        title="New service request"
-        description="Provide the event details once. Vendors in the selected category will receive it."
+        title={draft ? 'Edit service request' : 'New service request'}
+        description={
+          draft
+            ? 'Update this draft and publish it when it is ready. Vendors receive it only after publishing.'
+            : 'Provide the event details once. Vendors in the selected category will receive it.'
+        }
       />
 
       <form
@@ -844,7 +925,7 @@ function CreateRequestForm({
             disabled={saving !== null}
             onClick={() => void save(false)}
           >
-            {saving === 'draft' ? 'Saving…' : 'Save as draft'}
+            {saving === 'draft' ? 'Saving…' : draft ? 'Save changes' : 'Save as draft'}
           </button>
           <button
             type="submit"

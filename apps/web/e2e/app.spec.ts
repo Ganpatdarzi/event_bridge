@@ -34,6 +34,39 @@ const request = {
   updatedAt: '2026-11-20T10:00:00.000Z',
 };
 
+const draftRequest = {
+  id: 'req-draft',
+  reference: 'EB-R-0002',
+  title: 'Draft Catering Request',
+  status: 'draft',
+  category,
+  event: {
+    id: 'event-draft',
+    name: 'Draft Gala',
+    eventDate: '2026-12-20',
+    location: 'Main Auditorium',
+    expectedAttendance: 120,
+  },
+  society: { id: 'soc-1', name: 'Test Society', institution: 'Test University' },
+  description: 'Catering for 120 guests including vegetarian options and dessert.',
+  budgetMin: 50_000,
+  budgetMax: 90_000,
+  quantity: 120,
+  responseDeadline: '2026-12-01T17:00:00.000Z',
+  invitationCount: 0,
+  quotationCount: 0,
+  createdAt: '2026-11-21T10:00:00.000Z',
+  updatedAt: '2026-11-21T10:00:00.000Z',
+  permissions: {
+    canEdit: true,
+    canSubmit: true,
+    canCancel: true,
+    canClose: false,
+    canViewVendors: true,
+  },
+  counts: { invitedVendors: 0, quotations: 0 },
+};
+
 const vendor = {
   id: 'vendor-a',
   businessName: 'Vendor A Catering',
@@ -131,9 +164,12 @@ const comparison = {
 
 /** Serve deterministic API responses so the E2E suite needs no database. */
 async function mockApi(page: Page) {
+  let currentDraft: typeof draftRequest = { ...draftRequest };
+
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
+    const method = route.request().method();
 
     let status = 200;
     let body: unknown = { data: {} };
@@ -247,6 +283,20 @@ async function mockApi(page: Page) {
           busyWindows: [],
         },
       };
+    } else if (path === `/api/v1/requests/${draftRequest.id}` && method === 'GET') {
+      body = { data: currentDraft };
+    } else if (path === `/api/v1/requests/${draftRequest.id}` && method === 'PATCH') {
+      const patch = (route.request().postDataJSON() ?? {}) as Partial<typeof draftRequest>;
+      currentDraft = {
+        ...currentDraft,
+        ...patch,
+        status: 'draft',
+        updatedAt: new Date().toISOString(),
+      };
+      body = { data: currentDraft };
+    } else if (path === `/api/v1/requests/${draftRequest.id}/submit` && method === 'POST') {
+      currentDraft = { ...currentDraft, status: 'submitted' };
+      body = { data: currentDraft };
     } else if (path.startsWith('/api/v1/requests/') && path.endsWith('/compare')) {
       body = { data: comparison };
     } else if (path.startsWith('/api/v1/requests/') && path.includes('/quotations')) {
@@ -262,7 +312,7 @@ async function mockApi(page: Page) {
     } else if (path.startsWith('/api/v1/requests')) {
       body = {
         data: {
-          items: [request],
+          items: [request, currentDraft],
           pagination: { page: 1, pageSize: 50, total: 1, totalPages: 1 },
         },
       };
@@ -304,6 +354,52 @@ test('society can sign in and compare quotations side by side', async ({ page })
   await expect(table.getByRole('columnheader', { name: 'With extras' })).toBeVisible();
   await expect(table.getByText('Vendor A Catering')).toBeVisible();
   await expect(table.getByText('Vendor B Catering')).toBeVisible();
+});
+
+test('society can reopen, update, and publish a saved draft', async ({ page }) => {
+  const calls: { method: string; path: string }[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith(`/api/v1/requests/${draftRequest.id}`)) {
+      calls.push({ method: request.method(), path });
+    }
+  });
+
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('society@eventbridge.test');
+  await page.getByLabel('Password').fill('Society123!');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Welcome back, Society' })).toBeVisible();
+  await page.getByRole('button', { name: 'Edit draft' }).click();
+
+  const expectedDeadline = await page.evaluate(() => {
+    const date = new Date('2026-12-01T17:00:00.000Z');
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
+      date.getHours(),
+    )}:${pad(date.getMinutes())}`;
+  });
+
+  await expect(page.getByRole('heading', { name: 'Edit service request' })).toBeVisible();
+  await expect(page.getByLabel('Request title')).toHaveValue('Draft Catering Request');
+  await expect(page.getByLabel('Event name')).toHaveValue('Draft Gala');
+  await expect(page.getByLabel('Quotation deadline')).toHaveValue(expectedDeadline);
+
+  await page.getByLabel('Request title').fill('Updated Draft Catering Request');
+  await page.getByLabel('Budget min (PKR)').fill('60000');
+  await page.getByRole('button', { name: 'Publish request' }).click();
+
+  await expect(page.getByText('Draft updated and published.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Updated Draft Catering Request' })).toBeVisible();
+
+  expect(calls).toEqual(
+    expect.arrayContaining([
+      { method: 'GET', path: `/api/v1/requests/${draftRequest.id}` },
+      { method: 'PATCH', path: `/api/v1/requests/${draftRequest.id}` },
+      { method: 'POST', path: `/api/v1/requests/${draftRequest.id}/submit` },
+    ]),
+  );
 });
 
 test('society can inspect a vendor profile and check availability', async ({ page }) => {

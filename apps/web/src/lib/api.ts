@@ -354,6 +354,19 @@ export interface RequestListItem {
   updatedAt: string;
 }
 
+export interface RequestDetail extends RequestListItem {
+  description: string;
+  quantity: number | null;
+  permissions: {
+    canEdit: boolean;
+    canSubmit: boolean;
+    canCancel: boolean;
+    canClose: boolean;
+    canViewVendors: boolean;
+  };
+  counts: { invitedVendors: number; quotations: number };
+}
+
 export interface VendorRequestListItem extends RequestListItem {
   distribution: {
     status: 'invited' | 'viewed' | 'responded' | 'declined';
