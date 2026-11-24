@@ -74,6 +74,19 @@ const outsiderPayload = {
   },
 };
 
+const otherCategoryVendorPayload = {
+  role: 'vendor' as const,
+  name: 'Hamza Raza',
+  email: 'quotes.decor@example.com',
+  password: 'Vendor123!',
+  vendor: {
+    businessName: 'Decor Studio',
+    description: 'Decorations and stage setup for conferences and formal dinners.',
+    city: 'Karachi',
+    serviceArea: 'Karachi',
+  },
+};
+
 async function verifyVendor(email: string): Promise<void> {
   await pg().query(
     `update vendors set verification_status = 'verified', verified_at = now()
@@ -92,10 +105,12 @@ async function login(email: string, password: string): Promise<string> {
 
 describe('quotation and notification flow', () => {
   let categoryId = '';
+  let otherCategoryId = '';
   let requestId = '';
   let societyToken = '';
   let vendorToken = '';
   let outsiderToken = '';
+  let otherCategoryVendorToken = '';
   let notificationId = '';
 
   afterAll(async () => {
@@ -110,6 +125,13 @@ describe('quotation and notification flow', () => {
     );
     categoryId = rows[0]?.id ?? '';
 
+    const otherCategory = await pg().query<{ id: string }>(
+      `insert into categories (name, slug, description)
+       values ('Decor', 'decor-quote-test', 'Event decoration')
+       returning id`,
+    );
+    otherCategoryId = otherCategory.rows[0]?.id ?? '';
+
     await request(app).post('/api/v1/auth/register').send(societyPayload).expect(201);
     await request(app)
       .post('/api/v1/auth/register')
@@ -122,18 +144,34 @@ describe('quotation and notification flow', () => {
         vendor: { ...outsiderPayload.vendor, categoryIds: [categoryId] },
       })
       .expect(201);
+    await request(app)
+      .post('/api/v1/auth/register')
+      .send({
+        ...otherCategoryVendorPayload,
+        vendor: {
+          ...otherCategoryVendorPayload.vendor,
+          categoryIds: [otherCategoryId],
+        },
+      })
+      .expect(201);
 
     await verifyVendor(vendorPayload.email);
     await verifyVendor(outsiderPayload.email);
+    await verifyVendor(otherCategoryVendorPayload.email);
 
     societyToken = await login(societyPayload.email, societyPayload.password);
     vendorToken = await login(vendorPayload.email, vendorPayload.password);
     outsiderToken = await login(outsiderPayload.email, outsiderPayload.password);
+    otherCategoryVendorToken = await login(
+      otherCategoryVendorPayload.email,
+      otherCategoryVendorPayload.password,
+    );
 
     expect(categoryId).not.toBe('');
+    expect(otherCategoryId).not.toBe('');
   });
 
-  it('publishes a request and invites only the matching vendor', async () => {
+  it('publishes a request and invites every verified vendor in the category', async () => {
     const eventDate = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
     const responseDeadline = new Date(Date.now() + 10 * 86_400_000).toISOString();
 
@@ -161,16 +199,18 @@ describe('quotation and notification flow', () => {
     requestId = response.body.data.id as string;
 
     expect(response.body.data.status).toBe('open');
-    expect(response.body.data.counts.invitedVendors).toBe(1);
+    expect(response.body.data.counts.invitedVendors).toBe(2);
 
-    const board = await request(app)
-      .get('/api/v1/vendor/requests')
-      .set('Authorization', `Bearer ${vendorToken}`)
-      .expect(200);
+    for (const token of [vendorToken, outsiderToken]) {
+      const board = await request(app)
+        .get('/api/v1/vendor/requests')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
 
-    expect(board.body.data.items).toHaveLength(1);
-    expect(board.body.data.items[0].id).toBe(requestId);
-    expect(board.body.data.items[0].hasQuoted).toBe(false);
+      expect(board.body.data.items).toHaveLength(1);
+      expect(board.body.data.items[0].id).toBe(requestId);
+      expect(board.body.data.items[0].hasQuoted).toBe(false);
+    }
   });
 
   it('returns null for the vendor before they have quoted', async () => {
@@ -308,13 +348,13 @@ describe('quotation and notification flow', () => {
     expect(notifications.body.data.unreadCount).toBe(0);
   });
 
-  it('rejects a verified vendor who was not invited', async () => {
+  it('rejects a verified vendor outside the request category', async () => {
     const response = await request(app)
       .post(`/api/v1/requests/${requestId}/quotations`)
-      .set('Authorization', `Bearer ${outsiderToken}`)
+      .set('Authorization', `Bearer ${otherCategoryVendorToken}`)
       .send({
         totalPrice: 70_000,
-        description: 'A quote from a vendor outside the invited service area.',
+        description: 'A quote from a vendor in a different service category.',
       })
       .expect(403);
 

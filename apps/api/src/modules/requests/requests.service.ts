@@ -27,7 +27,7 @@ import { notifyBestEffort } from '../../lib/notifications.js';
 import { buildPagination, likePattern, type PageRequest } from '../../lib/pagination.js';
 import { makeReference } from '../../lib/reference.js';
 import type { Transaction } from '../../lib/transaction.js';
-import { findEligibleVendors, type MatchedVendor } from './matching.js';
+import { findEligibleVendors } from './matching.js';
 
 export type RequestSort = 'newest' | 'oldest' | 'deadline';
 
@@ -401,9 +401,7 @@ async function submitRequestTx(tx: Transaction, requestId: string, actorId: stri
     .set({ status: 'submitted', updatedAt: new Date() })
     .where(eq(serviceRequests.id, request.id));
 
-  const matched = event
-    ? await findEligibleVendors(tx, request.categoryId, event.location)
-    : ([] as MatchedVendor[]);
+  const matched = await findEligibleVendors(tx, request.categoryId);
 
   const now = new Date();
 
