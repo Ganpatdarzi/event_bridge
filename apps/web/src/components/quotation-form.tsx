@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { api, type Quotation } from '../lib/api.js';
+import { api, type Quotation, type VendorRequestListItem } from '../lib/api.js';
+import { formatBudget, formatDate, formatDateTime } from '../lib/format.js';
 import { useApiQuery } from '../lib/use-api.js';
-import { Alert, buttonStyles, Card, Field, inputClass, LoadingBlock } from './ui.js';
+import { Alert, Badge, buttonStyles, Card, Field, inputClass, LoadingBlock } from './ui.js';
 
 interface QuotationFormState {
   totalPrice: string;
@@ -27,18 +28,18 @@ const emptyForm: QuotationFormState = {
 };
 
 export function QuotationForm({
-  requestId,
-  requestTitle,
+  request,
   hasQuoted,
   onClose,
   onSaved,
 }: {
-  requestId: string;
-  requestTitle: string;
+  request: VendorRequestListItem;
   hasQuoted: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const requestId = request.id;
+  const requestTitle = request.title;
   const existing = useApiQuery(
     () => api<Quotation | null>(`/requests/${requestId}/quotations/mine`),
     [requestId],
@@ -132,6 +133,56 @@ export function QuotationForm({
           Close
         </button>
       </div>
+
+      <details className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4" open>
+        <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+          Society’s request brief — read this before pricing
+        </summary>
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="slate">{request.category.name}</Badge>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              {request.reference}
+            </span>
+          </div>
+          <p className="text-sm font-semibold text-slate-900">
+            {request.event?.name ?? request.title}
+          </p>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <BriefDetail label="Event date" value={formatDate(request.event?.eventDate ?? null)} />
+            <BriefDetail label="Location" value={request.event?.location || 'Not specified'} />
+            <BriefDetail
+              label="Expected attendance"
+              value={
+                request.event?.expectedAttendance
+                  ? request.event.expectedAttendance.toLocaleString()
+                  : 'Not specified'
+              }
+            />
+            <BriefDetail
+              label="Quantity needed"
+              value={request.quantity ? request.quantity.toLocaleString() : 'Not specified'}
+            />
+            <BriefDetail
+              label="Budget"
+              value={formatBudget(request.budgetMin, request.budgetMax)}
+            />
+            <BriefDetail
+              label="Respond by"
+              value={request.responseDeadline ? formatDateTime(request.responseDeadline) : '—'}
+            />
+          </dl>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              What the society asked for
+            </p>
+            <p className="mt-1 whitespace-pre-line text-sm text-slate-700">{request.description}</p>
+          </div>
+          <p className="text-xs text-slate-500">
+            Submitted by {request.society.name} · {request.society.institution}
+          </p>
+        </div>
+      </details>
 
       {existing.loading ? (
         <div className="mt-5">
@@ -278,5 +329,14 @@ export function QuotationForm({
         </form>
       )}
     </Card>
+  );
+}
+
+function BriefDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</dt>
+      <dd className="mt-0.5 font-medium text-slate-800">{value}</dd>
+    </div>
   );
 }

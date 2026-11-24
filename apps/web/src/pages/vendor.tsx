@@ -575,8 +575,7 @@ function VendorDashboard() {
 
                     {activeRequestId === request.id && (
                       <QuotationForm
-                        requestId={request.id}
-                        requestTitle={request.title}
+                        request={request}
                         hasQuoted={request.hasQuoted}
                         onClose={() => setActiveRequestId(null)}
                         onSaved={() => requestBoard.reload()}

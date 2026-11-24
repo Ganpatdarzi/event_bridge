@@ -40,8 +40,10 @@ const request = {
     expectedAttendance: 150,
   },
   society: { id: 'soc-1', name: 'Test Society', institution: 'Test University' },
+  description: 'Catering for 150 guests with a vegetarian menu and a dessert counter.',
   budgetMin: 80_000,
   budgetMax: 120_000,
+  quantity: 150,
   responseDeadline: '2026-11-30T17:00:00.000Z',
   invitationCount: 2,
   quotationCount: 2,
@@ -616,6 +618,28 @@ test('vendor opens dashboard pages from the header without duplicate tabs', asyn
   await nav.getByRole('link', { name: 'Requests', exact: true }).click();
   await expect(page).toHaveURL(/\/vendor\/requests$/);
   await expect(page.getByRole('heading', { name: 'Requests for you' })).toBeVisible();
+});
+
+test('vendor can review the society brief while writing a quote', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('vendor@eventbridge.test');
+  await page.getByLabel('Password').fill('Vendor123!');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/vendor$/);
+
+  const isMobile = page.viewportSize()!.width < 768;
+  if (isMobile) await page.getByRole('button', { name: 'Open menu' }).click();
+  const nav = page.getByRole('navigation', { name: isMobile ? 'Mobile' : 'Main' });
+  await nav.getByRole('link', { name: 'Requests', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Requests for you' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Apply with a quote' }).click();
+  await expect(page.getByText('Society’s request brief — read this before pricing')).toBeVisible();
+  await expect(
+    page.getByText('Catering for 150 guests with a vegetarian menu and a dessert counter.'),
+  ).toBeVisible();
+  await expect(page.getByText('Expected attendance')).toBeVisible();
+  await expect(page.getByText('Quantity needed')).toBeVisible();
 });
 
 test('admin dashboard has no requests tab', async ({ page }) => {

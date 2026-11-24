@@ -368,6 +368,8 @@ export interface RequestDetail extends RequestListItem {
 }
 
 export interface VendorRequestListItem extends RequestListItem {
+  description: string;
+  quantity: number | null;
   distribution: {
     status: 'invited' | 'viewed' | 'responded' | 'declined';
     viewedAt: string | null;

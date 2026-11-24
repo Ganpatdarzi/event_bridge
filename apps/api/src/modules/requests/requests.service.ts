@@ -146,6 +146,8 @@ export interface RequestListItem {
 }
 
 export interface VendorRequestListItem extends RequestListItem {
+  description: string;
+  quantity: number | null;
   distribution: {
     status: 'invited' | 'viewed' | 'responded' | 'declined';
     viewedAt: Date | null;
@@ -941,6 +943,8 @@ export async function listVendorRequests(
       reference: serviceRequests.reference,
       title: serviceRequests.title,
       status: serviceRequests.status,
+      description: serviceRequests.description,
+      quantity: serviceRequests.quantity,
       budgetMin: serviceRequests.budgetMin,
       budgetMax: serviceRequests.budgetMax,
       responseDeadline: serviceRequests.responseDeadline,
@@ -991,6 +995,8 @@ export async function listVendorRequests(
     reference: row.reference,
     title: row.title,
     status: row.status,
+    description: row.description,
+    quantity: row.quantity,
     category: {
       id: row.categoryId,
       name: row.categoryName,

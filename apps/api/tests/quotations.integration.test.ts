@@ -210,6 +210,9 @@ describe('quotation and notification flow', () => {
       expect(board.body.data.items).toHaveLength(1);
       expect(board.body.data.items[0].id).toBe(requestId);
       expect(board.body.data.items[0].hasQuoted).toBe(false);
+      expect(board.body.data.items[0].description).toContain('full catering for 250 guests');
+      expect(board.body.data.items[0].quantity).toBe(250);
+      expect(board.body.data.items[0].event.expectedAttendance).toBe(250);
     }
   });
 
