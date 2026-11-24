@@ -533,6 +533,41 @@ test('society can reopen, update, and publish a saved draft', async ({ page }) =
   );
 });
 
+test('publish errors show the exact validation message instead of a generic one', async ({
+  page,
+}) => {
+  await page.route(`**/api/v1/requests/${draftRequest.id}/submit`, (route) =>
+    route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          details: [
+            {
+              path: 'description',
+              message: 'Describe the requirement in at least 20 characters',
+            },
+          ],
+        },
+      }),
+    }),
+  );
+
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('society@eventbridge.test');
+  await page.getByLabel('Password').fill('Society123!');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+
+  await page.getByRole('button', { name: 'Edit draft' }).click();
+  await expect(page.getByRole('heading', { name: 'Edit service request' })).toBeVisible();
+  await page.getByRole('button', { name: 'Publish request' }).click();
+
+  await expect(page.getByText('Describe the requirement in at least 20 characters')).toBeVisible();
+  await expect(page.getByText('Validation failed')).toHaveCount(0);
+});
+
 test('society can inspect a vendor profile and check availability', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel('Email').fill('society@eventbridge.test');

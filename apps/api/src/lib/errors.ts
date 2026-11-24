@@ -1,3 +1,15 @@
+function firstValidationMessage(details: unknown): string | null {
+  if (!Array.isArray(details)) return null;
+  for (const detail of details) {
+    if (typeof detail === 'string' && detail.trim()) return detail.trim();
+    if (detail && typeof detail === 'object' && 'message' in detail) {
+      const message = (detail as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim()) return message.trim();
+    }
+  }
+  return null;
+}
+
 export class AppError extends Error {
   readonly statusCode: number;
   readonly code: string;
@@ -15,8 +27,9 @@ export class AppError extends Error {
     return new AppError(400, 'BAD_REQUEST', message, details);
   }
 
-  static validation(details: unknown, message = 'Validation failed'): AppError {
-    return new AppError(400, 'VALIDATION_ERROR', message, details);
+  static validation(details: unknown, message?: string): AppError {
+    const resolved = message ?? firstValidationMessage(details) ?? 'Validation failed';
+    return new AppError(400, 'VALIDATION_ERROR', resolved, details);
   }
 
   static unauthenticated(message = 'Authentication required'): AppError {

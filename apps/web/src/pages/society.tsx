@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   api,
+  ApiError,
   type Category,
   type MySociety,
   type Paginated,
@@ -135,7 +136,7 @@ function SocietyDashboard() {
     } catch (caught) {
       setActionNotice({
         tone: 'error',
-        text: caught instanceof Error ? caught.message : 'Unable to update the request',
+        text: requestErrorMessage(caught),
       });
     } finally {
       setWorkingId(null);
@@ -152,7 +153,7 @@ function SocietyDashboard() {
     } catch (caught) {
       setActionNotice({
         tone: 'error',
-        text: caught instanceof Error ? caught.message : 'Unable to open the draft',
+        text: requestErrorMessage(caught),
       });
     } finally {
       setWorkingId(null);
@@ -640,6 +641,20 @@ function toDateTimeLocal(iso: string | null): string {
   )}:${pad(date.getMinutes())}`;
 }
 
+function requestErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && Array.isArray(error.details)) {
+    const messages = (error.details as Array<{ message?: unknown }>)
+      .map((detail) => {
+        const message = detail?.message;
+        return typeof message === 'string' && message.trim() ? message.trim() : null;
+      })
+      .filter((message): message is string => Boolean(message));
+    if (messages.length > 0) return messages.join(' ');
+  }
+
+  return error instanceof Error ? error.message : 'Unable to save the request';
+}
+
 function CreateRequestForm({
   categories,
   draft,
@@ -747,7 +762,7 @@ function CreateRequestForm({
       }
       onSaved(message);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to save the request');
+      setError(requestErrorMessage(caught));
     } finally {
       setSaving(null);
     }

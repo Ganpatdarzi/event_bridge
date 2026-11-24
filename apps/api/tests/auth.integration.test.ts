@@ -97,6 +97,18 @@ describe('authentication API', () => {
 
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
     expect(response.body.error.details.length).toBeGreaterThan(0);
+    expect(response.body.error.message).not.toBe('Validation failed');
+    expect(response.body.error.message).toMatch(
+      /Enter a valid email address|Password must be at least 8 characters/,
+    );
+    expect(
+      response.body.error.details.map((detail: { message: string }) => detail.message),
+    ).toEqual(
+      expect.arrayContaining([
+        'Enter a valid email address',
+        'Password must be at least 8 characters',
+      ]),
+    );
   });
 
   it('registers a vendor as pending_review', async () => {

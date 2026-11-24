@@ -216,6 +216,44 @@ describe('quotation and notification flow', () => {
     }
   });
 
+  it('returns the exact validation message when a request cannot be published', async () => {
+    const eventDate = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+    const responseDeadline = new Date(Date.now() + 10 * 86_400_000).toISOString();
+
+    const response = await request(app)
+      .post('/api/v1/requests')
+      .set('Authorization', `Bearer ${societyToken}`)
+      .send({
+        event: {
+          name: 'Quote Flow Gala',
+          eventDate,
+          location: 'Karachi Expo Centre',
+          expectedAttendance: 250,
+        },
+        categoryId,
+        title: 'Catering for quote flow gala',
+        description: 'Too short',
+        budgetMin: 50_000,
+        budgetMax: 150_000,
+        quantity: 250,
+        responseDeadline,
+        submit: true,
+      })
+      .expect(400);
+
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    expect(response.body.error.message).toBe('Describe the requirement in at least 20 characters');
+    expect(response.body.error.message).not.toBe('Validation failed');
+    expect(response.body.error.details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'description',
+          message: 'Describe the requirement in at least 20 characters',
+        }),
+      ]),
+    );
+  });
+
   it('returns null for the vendor before they have quoted', async () => {
     const response = await request(app)
       .get(`/api/v1/requests/${requestId}/quotations/mine`)
