@@ -74,12 +74,12 @@ export function HirePanel({
     try {
       await api<BookingDetail>('/bookings', {
         method: 'POST',
-        body: JSON.stringify({
+        body: {
           quotationId: target.quotationId,
           startsAt: new Date(startsAt).toISOString(),
           endsAt: new Date(endsAt).toISOString(),
           ...(notes.trim() ? { notes: notes.trim() } : {}),
-        }),
+        },
       });
       setAvailability(null);
       onBooked?.();
@@ -97,7 +97,7 @@ export function HirePanel({
     try {
       await api(`/bookings/${activeBooking.id}/cancel`, {
         method: 'POST',
-        body: JSON.stringify({ reason: 'Cancelled by society' }),
+        body: { reason: 'Cancelled by society' },
       });
       onBooked?.();
     } catch (caught) {

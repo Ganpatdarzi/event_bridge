@@ -67,7 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(
     async (body: unknown, email: string, password: string) => {
       await registerRequest(body);
-      return login(email, password);
+      try {
+        return await login(email, password);
+      } catch {
+        throw new Error('Account created. Please sign in with your email and password.');
+      }
     },
     [login],
   );

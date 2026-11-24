@@ -2,13 +2,97 @@ import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.js';
-import { api, type Category } from '../lib/api.js';
+import { api, ApiError, type Category } from '../lib/api.js';
 import { useApiQuery } from '../lib/use-api.js';
 import { Alert, buttonStyles, Field, inputClass } from '../components/ui.js';
 import { Logo } from '../app/shell.js';
 import { dashboardPath } from '../lib/roles.js';
 
 type Role = 'society' | 'vendor';
+
+interface AccountInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
+interface SocietyInput {
+  societyName: string;
+  institution: string;
+  contactPerson: string;
+  contactPhone: string;
+  description: string;
+}
+
+interface VendorInput {
+  businessName: string;
+  description: string;
+  city: string;
+  serviceArea: string;
+  contactPerson: string;
+  contactPhone: string;
+}
+
+const PASSWORD_ISSUE =
+  'Password must be at least 8 characters, with at least one letter and one number.';
+
+/** Mirror the API rules so common input mistakes never become a silent submit. */
+function registrationIssues(
+  role: Role,
+  account: AccountInput,
+  society: SocietyInput,
+  vendor: VendorInput,
+): string[] {
+  const issues: string[] = [];
+
+  if (account.name.trim().length < 2) issues.push('Enter your full name.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(account.email)) {
+    issues.push('Enter a valid email address.');
+  }
+  if (
+    account.password.length < 8 ||
+    account.password.length > 128 ||
+    !/[A-Za-z]/.test(account.password) ||
+    !/[0-9]/.test(account.password)
+  ) {
+    issues.push(PASSWORD_ISSUE);
+  }
+
+  if (role === 'society') {
+    if (society.societyName.trim().length < 2) issues.push('Enter the society name.');
+    if (society.institution.trim().length < 2) issues.push('Enter the institution.');
+    if (society.contactPerson.trim().length < 2) issues.push('Enter a contact person.');
+  } else {
+    if (vendor.businessName.trim().length < 2) issues.push('Enter the business name.');
+    if (vendor.description.trim().length < 20) {
+      issues.push('Describe your business in at least 20 characters.');
+    }
+    if (vendor.city.trim().length < 2) issues.push('Enter the city.');
+  }
+
+  const phone = role === 'society' ? society.contactPhone : vendor.contactPhone;
+  if (phone.trim() && phone.trim().length < 7) {
+    issues.push('Enter a contact phone with at least 7 characters.');
+  }
+
+  return issues;
+}
+
+/** Surface the API's field-level validation details instead of a blank form. */
+function registrationErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && Array.isArray(error.details)) {
+    const details = error.details as Array<{ path?: string; message?: string }>;
+    const messages = details
+      .map((detail) => {
+        const message = detail.message ?? 'Invalid value';
+        return detail.path ? `${detail.path}: ${message}` : message;
+      })
+      .filter((message) => message.length > 0);
+    if (messages.length > 0) return `Please check: ${messages.join('; ')}`;
+  }
+
+  return error instanceof Error ? error.message : 'Unable to create the account';
+}
 
 export function RegisterPage() {
   const { register } = useAuth();
@@ -82,11 +166,18 @@ export function RegisterPage() {
             },
           };
 
+    const issues = registrationIssues(role, base, society, vendor);
+    if (issues.length > 0) {
+      setError(issues.join(' '));
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const user = await register(body, base.email, base.password);
       navigate(dashboardPath(user.role), { replace: true });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to create the account');
+      setError(registrationErrorMessage(caught));
     } finally {
       setSubmitting(false);
     }

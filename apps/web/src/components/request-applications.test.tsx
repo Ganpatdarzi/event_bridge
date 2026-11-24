@@ -197,7 +197,7 @@ describe('RequestApplications', () => {
         '/bookings',
         expect.objectContaining({
           method: 'POST',
-          body: expect.stringContaining('"quotationId":"quote-a"'),
+          body: expect.objectContaining({ quotationId: 'quote-a' }),
         }),
       );
     });
